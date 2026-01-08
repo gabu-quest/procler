@@ -27,7 +27,7 @@ from .schema import (
     RecipeStepWait,
     RecipeStepExec,
 )
-from .changelog import append_changelog, ChangelogAction
+from .changelog import append_changelog, read_changelog, ChangelogAction
 
 __all__ = [
     "find_config_dir",
@@ -54,5 +54,6 @@ __all__ = [
     "RecipeStepWait",
     "RecipeStepExec",
     "append_changelog",
+    "read_changelog",
     "ChangelogAction",
 ]

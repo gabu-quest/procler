@@ -178,11 +178,24 @@ def reset_config_cache() -> None:
 def generate_template_config() -> str:
     """Generate a template config.yaml with examples."""
     return '''\
-# Procler Configuration
-# See: https://github.com/gabu-quest/procler
+# Procler Configuration - LLM-First Process Manager
+# https://github.com/gabu-quest/procler
+#
+# This file is VERSION CONTROLLED - commit it to your repo!
+# Each project can have its own .procler/ directory.
+#
+# Files in .procler/:
+#   config.yaml   - This file (commit to git)
+#   changelog.log - Audit trail of operations (commit to git)
+#   state.db      - Runtime state (auto-gitignored)
+#
+# Discovery order: $PROCLER_CONFIG_DIR > .procler.env > .procler/ > git root > ~/.procler/
+#
+# CLI: `procler config explain` shows what this config does in plain language
+# API: GET /api/config/explain returns the same as JSON
 version: 1
 
-# Process definitions
+# Process definitions - things that run continuously
 processes:
   # Example local process
   # api:
@@ -190,6 +203,7 @@ processes:
   #   context: local
   #   cwd: /path/to/project
   #   tags: [backend, api]
+  #   description: "FastAPI development server"
   #
   # Example docker process
   # worker:
@@ -199,19 +213,21 @@ processes:
   #   description: "Background task worker"
 
 # Process groups - ordered start/stop
+# Use: `procler group start backend` / `procler group stop backend`
 groups:
   # Example group
   # backend:
   #   description: "Full backend stack"
-  #   processes: [redis, api, worker]
+  #   processes: [redis, api, worker]  # Start in this order
   #   # stop_order defaults to reverse of processes
-  #   # stop_order: [worker, api, redis]
+  #   # stop_order: [worker, api, redis]  # Custom stop order
 
-# Recipes - multi-step operations
+# Recipes - multi-step operations (like makefiles for processes)
+# Use: `procler recipe run deploy --dry-run` to preview
 recipes:
   # Example recipe
-  # restart-backend:
-  #   description: "Graceful backend restart"
+  # deploy:
+  #   description: "Graceful deployment with migration"
   #   on_error: stop  # or "continue"
   #   steps:
   #     - stop: worker
@@ -223,7 +239,8 @@ recipes:
   #     - start: api
   #     - start: worker
 
-# Snippets - reusable commands
+# Snippets - reusable one-off commands
+# Use: `procler snippet run rebuild`
 snippets:
   # Example snippet
   # rebuild:

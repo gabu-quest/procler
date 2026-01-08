@@ -42,20 +42,46 @@ def error_response(
     return response
 
 
-# CLI schema for capabilities command
+# CLI schema for capabilities command - LLM-friendly discovery
 
 CLI_SCHEMA = {
     "name": "procler",
     "version": __version__,
-    "description": "LLM-first process manager for developers",
+    "description": "LLM-first process manager for developers. All output is JSON.",
+    "output_format": "All commands return JSON with {success: bool, data?: object, error?: string, error_code?: string, suggestion?: string}",
+    "config_location": ".procler/ directory (per-project, version-controllable)",
+    "common_workflows": [
+        {
+            "name": "Start a dev environment",
+            "steps": ["procler group start backend", "procler status"],
+            "description": "Start all backend processes in order and verify status",
+        },
+        {
+            "name": "Graceful restart with migration",
+            "steps": ["procler recipe run deploy --dry-run", "procler recipe run deploy"],
+            "description": "Preview then execute a multi-step deployment recipe",
+        },
+        {
+            "name": "Debug a failing process",
+            "steps": ["procler status api", "procler logs api --tail 50", "procler restart api"],
+            "description": "Check status, view recent logs, then restart",
+        },
+        {
+            "name": "Initialize a new project",
+            "steps": ["procler config init", "# Edit .procler/config.yaml", "procler config validate"],
+            "description": "Create config directory with template, then validate",
+        },
+    ],
     "commands": {
         "capabilities": {
-            "description": "Returns JSON schema of all commands",
+            "description": "Returns JSON schema of all commands (LLM discovery)",
+            "example": "procler capabilities",
             "arguments": [],
             "options": [],
         },
         "status": {
             "description": "Show status of all processes or a specific one",
+            "example": "procler status api",
             "arguments": [
                 {
                     "name": "name",
@@ -67,6 +93,7 @@ CLI_SCHEMA = {
         },
         "start": {
             "description": "Start a process (idempotent - no-op if running)",
+            "example": "procler start api",
             "arguments": [
                 {"name": "name", "required": True, "description": "Process name"}
             ],
@@ -74,6 +101,7 @@ CLI_SCHEMA = {
         },
         "stop": {
             "description": "Stop a process (idempotent - no-op if stopped)",
+            "example": "procler stop api",
             "arguments": [
                 {"name": "name", "required": True, "description": "Process name"}
             ],
@@ -81,13 +109,15 @@ CLI_SCHEMA = {
         },
         "restart": {
             "description": "Restart a process (stop then start)",
+            "example": "procler restart api",
             "arguments": [
                 {"name": "name", "required": True, "description": "Process name"}
             ],
             "options": [],
         },
         "define": {
-            "description": "Define a new process",
+            "description": "Define a new process in runtime DB (prefer config.yaml for persistence)",
+            "example": "procler define --name api --command 'uvicorn main:app' --cwd /app",
             "arguments": [],
             "options": [
                 {"name": "--name", "required": True, "description": "Process name (CLI identifier)"},
@@ -110,7 +140,8 @@ CLI_SCHEMA = {
             ],
         },
         "remove": {
-            "description": "Remove a process definition",
+            "description": "Remove a process definition from runtime DB",
+            "example": "procler remove api",
             "arguments": [
                 {"name": "name", "required": True, "description": "Process name"}
             ],
@@ -118,11 +149,13 @@ CLI_SCHEMA = {
         },
         "list": {
             "description": "List all process definitions",
+            "example": "procler list",
             "arguments": [],
             "options": [],
         },
         "logs": {
             "description": "Get logs for a process",
+            "example": "procler logs api --tail 50 --since 5m",
             "arguments": [
                 {"name": "name", "required": True, "description": "Process name"}
             ],
@@ -141,7 +174,8 @@ CLI_SCHEMA = {
             ],
         },
         "exec": {
-            "description": "Execute an arbitrary command",
+            "description": "Execute an arbitrary command (one-off, not a managed process)",
+            "example": "procler exec 'ls -la' --context docker --container myapp",
             "arguments": [
                 {"name": "command", "required": True, "description": "Command to execute"}
             ],
@@ -162,16 +196,18 @@ CLI_SCHEMA = {
             ],
         },
         "snippet": {
-            "description": "Manage command snippets",
+            "description": "Manage command snippets (reusable one-off commands)",
             "subcommands": {
                 "list": {
                     "description": "List all snippets",
+                    "example": "procler snippet list --tag docker",
                     "options": [
                         {"name": "--tag", "required": False, "description": "Filter by tag"}
                     ],
                 },
                 "save": {
                     "description": "Save a new snippet",
+                    "example": "procler snippet save --name rebuild --command 'docker compose build'",
                     "options": [
                         {"name": "--name", "required": True, "description": "Snippet name"},
                         {"name": "--command", "required": True, "description": "Command to save"},
@@ -188,12 +224,14 @@ CLI_SCHEMA = {
                 },
                 "run": {
                     "description": "Run a saved snippet",
+                    "example": "procler snippet run rebuild",
                     "arguments": [
                         {"name": "name", "required": True, "description": "Snippet name"}
                     ],
                 },
                 "remove": {
                     "description": "Remove a snippet",
+                    "example": "procler snippet remove rebuild",
                     "arguments": [
                         {"name": "name", "required": True, "description": "Snippet name"}
                     ],
@@ -201,7 +239,8 @@ CLI_SCHEMA = {
             },
         },
         "serve": {
-            "description": "Start the web server",
+            "description": "Start the web server (API + optional Vue dashboard)",
+            "example": "procler serve --port 8000 --reload",
             "arguments": [],
             "options": [
                 {"name": "--host", "required": False, "default": "127.0.0.1", "description": "Host to bind"},
@@ -210,25 +249,29 @@ CLI_SCHEMA = {
             ],
         },
         "group": {
-            "description": "Manage process groups",
+            "description": "Manage process groups (ordered start/stop from config.yaml)",
             "subcommands": {
                 "list": {
-                    "description": "List all groups",
+                    "description": "List all groups defined in config",
+                    "example": "procler group list",
                 },
                 "start": {
-                    "description": "Start all processes in a group (in order)",
+                    "description": "Start all processes in a group (in defined order)",
+                    "example": "procler group start backend",
                     "arguments": [
                         {"name": "name", "required": True, "description": "Group name"}
                     ],
                 },
                 "stop": {
-                    "description": "Stop all processes in a group (in reverse order)",
+                    "description": "Stop all processes in a group (in reverse/custom order)",
+                    "example": "procler group stop backend",
                     "arguments": [
                         {"name": "name", "required": True, "description": "Group name"}
                     ],
                 },
                 "status": {
                     "description": "Get status of all processes in a group",
+                    "example": "procler group status backend",
                     "arguments": [
                         {"name": "name", "required": True, "description": "Group name"}
                     ],
@@ -236,19 +279,22 @@ CLI_SCHEMA = {
             },
         },
         "recipe": {
-            "description": "Manage and run recipes (multi-step operations)",
+            "description": "Manage and run recipes (multi-step operations from config.yaml)",
             "subcommands": {
                 "list": {
-                    "description": "List all recipes",
+                    "description": "List all recipes defined in config",
+                    "example": "procler recipe list",
                 },
                 "show": {
                     "description": "Show recipe details and steps",
+                    "example": "procler recipe show deploy",
                     "arguments": [
                         {"name": "name", "required": True, "description": "Recipe name"}
                     ],
                 },
                 "run": {
-                    "description": "Execute a recipe",
+                    "description": "Execute a recipe (use --dry-run to preview)",
+                    "example": "procler recipe run deploy --dry-run",
                     "arguments": [
                         {"name": "name", "required": True, "description": "Recipe name"}
                     ],
@@ -260,16 +306,23 @@ CLI_SCHEMA = {
             },
         },
         "config": {
-            "description": "Manage configuration",
+            "description": "Manage configuration (.procler/ directory)",
             "subcommands": {
                 "init": {
                     "description": "Initialize .procler/ config directory with template",
+                    "example": "procler config init",
                 },
                 "validate": {
-                    "description": "Validate config.yaml syntax and references",
+                    "description": "Validate config.yaml syntax and all references",
+                    "example": "procler config validate",
                 },
                 "path": {
-                    "description": "Show the config directory path",
+                    "description": "Show the resolved config directory path",
+                    "example": "procler config path",
+                },
+                "explain": {
+                    "description": "Explain what the config defines in plain language (LLM-friendly)",
+                    "example": "procler config explain",
                 },
             },
         },
@@ -947,6 +1000,112 @@ def config_path() -> None:
                     "changelog": get_changelog_path().exists(),
                     "state_db": get_state_db_path().exists(),
                 },
+            }
+        )
+    )
+
+
+@config.command("explain")
+def config_explain() -> None:
+    """Explain what the config defines in plain language (LLM-friendly)."""
+    from .config import get_config, get_config_file_path
+
+    cfg = get_config()
+    config_path = get_config_file_path()
+
+    if not config_path.exists():
+        output_json(
+            success_response(
+                {
+                    "summary": "No config file found. Run 'procler config init' to create one.",
+                    "sections": [],
+                }
+            )
+        )
+        return
+
+    sections = []
+
+    # Explain processes
+    if cfg.processes:
+        proc_explanations = []
+        for name, proc in cfg.processes.items():
+            ctx = "locally" if proc.context.value == "local" else f"in Docker container '{proc.container}'"
+            desc = f"'{name}': runs `{proc.command}` {ctx}"
+            if proc.cwd:
+                desc += f" (working dir: {proc.cwd})"
+            if proc.description:
+                desc += f" - {proc.description}"
+            proc_explanations.append(desc)
+        sections.append({
+            "type": "processes",
+            "title": f"{len(cfg.processes)} Process Definitions",
+            "explanation": "These processes can be started, stopped, and monitored individually.",
+            "items": proc_explanations,
+        })
+
+    # Explain groups
+    if cfg.groups:
+        group_explanations = []
+        for name, group in cfg.groups.items():
+            stop_order = group.get_stop_order()
+            is_reversed = stop_order == list(reversed(group.processes))
+            stop_desc = "reversed order" if is_reversed else f"custom order: {' -> '.join(stop_order)}"
+            desc = f"'{name}': starts [{' -> '.join(group.processes)}], stops in {stop_desc}"
+            if group.description:
+                desc += f" - {group.description}"
+            group_explanations.append(desc)
+        sections.append({
+            "type": "groups",
+            "title": f"{len(cfg.groups)} Process Groups",
+            "explanation": "Groups start processes in order and stop them in reverse (or custom) order.",
+            "items": group_explanations,
+        })
+
+    # Explain recipes
+    if cfg.recipes:
+        recipe_explanations = []
+        for name, recipe in cfg.recipes.items():
+            steps = recipe.get_steps()
+            step_summary = f"{len(steps)} steps"
+            error_handling = "stops on error" if recipe.on_error.value == "stop" else "continues on error"
+            desc = f"'{name}': {step_summary}, {error_handling}"
+            if recipe.description:
+                desc += f" - {recipe.description}"
+            recipe_explanations.append(desc)
+        sections.append({
+            "type": "recipes",
+            "title": f"{len(cfg.recipes)} Recipes",
+            "explanation": "Recipes are multi-step operations that automate common workflows.",
+            "items": recipe_explanations,
+        })
+
+    # Explain snippets
+    if cfg.snippets:
+        snippet_explanations = []
+        for name, snippet in cfg.snippets.items():
+            ctx = "locally" if snippet.context.value == "local" else f"in Docker '{snippet.container}'"
+            desc = f"'{name}': `{snippet.command}` ({ctx})"
+            if snippet.description:
+                desc += f" - {snippet.description}"
+            snippet_explanations.append(desc)
+        sections.append({
+            "type": "snippets",
+            "title": f"{len(cfg.snippets)} Snippets",
+            "explanation": "Snippets are reusable commands you can run quickly.",
+            "items": snippet_explanations,
+        })
+
+    # Build summary
+    total = len(cfg.processes) + len(cfg.groups) + len(cfg.recipes) + len(cfg.snippets)
+    summary = f"Config defines {total} items: {len(cfg.processes)} processes, {len(cfg.groups)} groups, {len(cfg.recipes)} recipes, {len(cfg.snippets)} snippets."
+
+    output_json(
+        success_response(
+            {
+                "summary": summary,
+                "sections": sections,
+                "config_file": str(config_path),
             }
         )
     )
