@@ -41,8 +41,8 @@ procgler/
 
 ## Tech Stack
 
-- **Backend:** Python 3.11+, FastAPI, Click CLI
-- **Database:** SQLite via sqler (JSON-first micro-ORM)
+- **Backend:** Python 3.12+, FastAPI, Click CLI
+- **Database:** SQLite via [sqler](https://pypi.org/project/sqler/) (JSON-first micro-ORM)
 - **Frontend:** Vue 3, Vite, Pinia (later phases)
 - **Docker:** docker-py SDK for container operations
 - **Real-time:** WebSockets (native FastAPI)

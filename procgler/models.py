@@ -1,9 +1,11 @@
-"""Data models for Procgler."""
+"""Data models for Procgler using sqler."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import Optional
+
+from sqler import SQLerModel
 
 
 class ProcessStatus(str, Enum):
@@ -30,89 +32,74 @@ class LogStream(str, Enum):
     STDERR = "stderr"
 
 
-@dataclass
-class ProcessDefinition:
-    """Definition of a managed process."""
+# SQLer Models for database persistence
 
-    id: int
+
+class Process(SQLerModel):
+    """Process definition stored in database."""
+
     name: str
     command: str
-    context_type: ContextType = ContextType.LOCAL
-    display_name: Optional[str] = None
-    container_name: Optional[str] = None
-    cwd: Optional[str] = None
-    env: dict[str, str] = field(default_factory=dict)
+    context_type: str = "local"
+    display_name: str | None = None
+    container_name: str | None = None
+    cwd: str | None = None
+    env: dict[str, str] | None = None
     auto_restart: bool = False
     restart_delay_seconds: int = 5
-    tags: list[str] = field(default_factory=list)
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    tags: list[str] | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
 
+    # Runtime state (stored with the process)
+    status: str = "stopped"
+    pid: int | None = None
+    started_at: str | None = None
+    exit_code: int | None = None
+    error_message: str | None = None
 
-@dataclass
-class ProcessState:
-    """Runtime state of a process."""
+    def get_context_type(self) -> ContextType:
+        return ContextType(self.context_type)
 
-    process_id: int
-    status: ProcessStatus = ProcessStatus.STOPPED
-    pid: Optional[int] = None
-    started_at: Optional[datetime] = None
-    exit_code: Optional[int] = None
-    error_message: Optional[str] = None
-
-
-@dataclass
-class ProcessInfo:
-    """Combined process definition and state."""
-
-    definition: ProcessDefinition
-    state: ProcessState
+    def get_status(self) -> ProcessStatus:
+        return ProcessStatus(self.status)
 
     @property
-    def name(self) -> str:
-        return self.definition.name
-
-    @property
-    def status(self) -> ProcessStatus:
-        return self.state.status
-
-    @property
-    def pid(self) -> Optional[int]:
-        return self.state.pid
-
-    @property
-    def uptime_seconds(self) -> Optional[int]:
-        if self.state.started_at and self.state.status == ProcessStatus.RUNNING:
-            return int((datetime.now() - self.state.started_at).total_seconds())
+    def uptime_seconds(self) -> int | None:
+        if self.started_at and self.status == ProcessStatus.RUNNING.value:
+            started = datetime.fromisoformat(self.started_at)
+            return int((datetime.now() - started).total_seconds())
         return None
 
 
-@dataclass
-class LogEntry:
-    """A single log entry."""
+class LogEntry(SQLerModel):
+    """Log entry stored in database."""
 
-    id: int
     process_id: int
-    timestamp: datetime
-    stream: LogStream
-    line: str
+    stream: str = "stdout"
+    line: str = ""
+    timestamp: str | None = None
+
+    def get_stream(self) -> LogStream:
+        return LogStream(self.stream)
 
 
-@dataclass
-class Snippet:
-    """A saved command snippet."""
+class Snippet(SQLerModel):
+    """Command snippet stored in database."""
 
-    id: int
     name: str
     command: str
-    description: Optional[str] = None
-    context_type: ContextType = ContextType.LOCAL
-    container_name: Optional[str] = None
-    tags: list[str] = field(default_factory=list)
-    created_at: Optional[datetime] = None
+    description: str | None = None
+    context_type: str = "local"
+    container_name: str | None = None
+    tags: list[str] | None = None
+    created_at: str | None = None
+
+    def get_context_type(self) -> ContextType:
+        return ContextType(self.context_type)
 
 
-# JSON response envelope types
+# JSON response envelope types (not stored in DB)
 
 
 @dataclass
@@ -120,7 +107,7 @@ class SuccessResponse:
     """Successful JSON response."""
 
     success: bool = True
-    data: Optional[dict] = None
+    data: dict | None = None
 
 
 @dataclass
@@ -129,5 +116,5 @@ class ErrorResponse:
 
     success: bool = False
     error: str = ""
-    error_code: Optional[str] = None
-    suggestion: Optional[str] = None
+    error_code: str | None = None
+    suggestion: str | None = None

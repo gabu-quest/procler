@@ -2,7 +2,8 @@
 
 import json
 import sys
-from typing import Any, Optional
+from datetime import datetime
+from typing import Any
 
 import click
 
@@ -16,7 +17,7 @@ def output_json(data: dict[str, Any]) -> None:
     click.echo(json.dumps(data, indent=2, default=str))
 
 
-def success_response(data: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+def success_response(data: dict[str, Any] | None = None) -> dict[str, Any]:
     """Create a success response envelope."""
     response = {"success": True}
     if data is not None:
@@ -26,8 +27,8 @@ def success_response(data: Optional[dict[str, Any]] = None) -> dict[str, Any]:
 
 def error_response(
     error: str,
-    error_code: Optional[str] = None,
-    suggestion: Optional[str] = None,
+    error_code: str | None = None,
+    suggestion: str | None = None,
     **extra: Any,
 ) -> dict[str, Any]:
     """Create an error response envelope."""
@@ -211,6 +212,32 @@ CLI_SCHEMA = {
 }
 
 
+def _get_process_by_name(name: str):
+    """Get a process by name using sqler query."""
+    from sqler.query import SQLerField as F
+
+    from .db import init_database
+    from .models import Process
+
+    init_database()
+    results = Process.query().filter(F("name") == name).all()
+    return results[0] if results else None
+
+
+def _process_to_dict(process) -> dict[str, Any]:
+    """Convert a Process model to a dict for JSON output."""
+    return {
+        "id": process._id,
+        "name": process.name,
+        "display_name": process.display_name,
+        "command": process.command,
+        "context_type": process.context_type,
+        "status": process.status,
+        "pid": process.pid,
+        "uptime_seconds": process.uptime_seconds,
+    }
+
+
 @click.group()
 @click.version_option(version=__version__, prog_name="procgler")
 def cli() -> None:
@@ -229,15 +256,15 @@ def capabilities() -> None:
 
 @cli.command()
 @click.argument("name", required=False)
-def status(name: Optional[str]) -> None:
+def status(name: str | None) -> None:
     """Show status of all processes or a specific one."""
-    from .db import get_database
-    from .models import ProcessInfo
+    from .db import init_database
+    from .models import Process
 
-    db = get_database()
+    init_database()
 
     if name:
-        process = db.get_process_by_name(name)
+        process = _get_process_by_name(name)
         if not process:
             output_json(
                 error_response(
@@ -248,65 +275,34 @@ def status(name: Optional[str]) -> None:
             )
             sys.exit(1)
 
-        state = db.get_process_state(process.id)
-        info = ProcessInfo(definition=process, state=state)
-        output_json(
-            success_response(
-                {
-                    "process": {
-                        "id": info.definition.id,
-                        "name": info.name,
-                        "display_name": info.definition.display_name,
-                        "command": info.definition.command,
-                        "context_type": info.definition.context_type.value,
-                        "status": info.status.value,
-                        "pid": info.pid,
-                        "uptime_seconds": info.uptime_seconds,
-                    }
-                }
-            )
-        )
+        output_json(success_response({"process": _process_to_dict(process)}))
     else:
-        processes = db.list_processes()
-        process_data = []
-        for process in processes:
-            state = db.get_process_state(process.id)
-            info = ProcessInfo(definition=process, state=state)
-            process_data.append(
-                {
-                    "id": info.definition.id,
-                    "name": info.name,
-                    "display_name": info.definition.display_name,
-                    "command": info.definition.command,
-                    "context_type": info.definition.context_type.value,
-                    "status": info.status.value,
-                    "pid": info.pid,
-                    "uptime_seconds": info.uptime_seconds,
-                }
-            )
+        processes = Process.query().all()
+        process_data = [_process_to_dict(p) for p in processes]
         output_json(success_response({"processes": process_data}))
 
 
 @cli.command("list")
 def list_processes() -> None:
     """List all process definitions."""
-    from .db import get_database
+    from .db import init_database
+    from .models import Process
 
-    db = get_database()
-    processes = db.list_processes()
+    init_database()
+    processes = Process.query().all()
 
     process_data = []
     for process in processes:
         process_data.append(
             {
-                "id": process.id,
+                "id": process._id,
                 "name": process.name,
                 "display_name": process.display_name,
                 "command": process.command,
-                "context_type": process.context_type.value,
+                "context_type": process.context_type,
                 "container_name": process.container_name,
                 "cwd": process.cwd,
-                "tags": process.tags,
+                "tags": process.tags or [],
             }
         )
 
@@ -330,14 +326,14 @@ def define(
     name: str,
     cmd: str,
     context: str,
-    container: Optional[str],
-    cwd: Optional[str],
-    display_name: Optional[str],
-    tags: Optional[str],
+    container: str | None,
+    cwd: str | None,
+    display_name: str | None,
+    tags: str | None,
 ) -> None:
     """Define a new process."""
-    from .db import get_database
-    from .models import ContextType, ProcessDefinition
+    from .db import init_database
+    from .models import Process
 
     if context == "docker" and not container:
         output_json(
@@ -349,10 +345,10 @@ def define(
         )
         sys.exit(1)
 
-    db = get_database()
+    init_database()
 
     # Check if process already exists
-    existing = db.get_process_by_name(name)
+    existing = _get_process_by_name(name)
     if existing:
         output_json(
             error_response(
@@ -363,30 +359,30 @@ def define(
         )
         sys.exit(1)
 
-    tag_list = [t.strip() for t in tags.split(",")] if tags else []
+    tag_list = [t.strip() for t in tags.split(",")] if tags else None
 
-    process = ProcessDefinition(
-        id=0,  # Will be set by database
+    process = Process(
         name=name,
         command=cmd,
-        context_type=ContextType(context),
+        context_type=context,
         display_name=display_name,
         container_name=container,
         cwd=cwd,
         tags=tag_list,
+        created_at=datetime.now().isoformat(),
+        updated_at=datetime.now().isoformat(),
     )
-
-    created = db.create_process(process)
+    process.save()
 
     output_json(
         success_response(
             {
                 "action": "created",
                 "process": {
-                    "id": created.id,
-                    "name": created.name,
-                    "command": created.command,
-                    "context_type": created.context_type.value,
+                    "id": process._id,
+                    "name": process.name,
+                    "command": process.command,
+                    "context_type": process.context_type,
                 },
             }
         )
@@ -397,11 +393,12 @@ def define(
 @click.argument("name")
 def remove(name: str) -> None:
     """Remove a process definition."""
-    from .db import get_database
+    from .db import init_database
 
-    db = get_database()
+    init_database()
 
-    if not db.get_process_by_name(name):
+    process = _get_process_by_name(name)
+    if not process:
         output_json(
             error_response(
                 f"Process '{name}' not found",
@@ -411,7 +408,7 @@ def remove(name: str) -> None:
         )
         sys.exit(1)
 
-    db.delete_process(name)
+    process.delete()
     output_json(success_response({"action": "removed", "name": name}))
 
 
@@ -464,7 +461,7 @@ def restart(name: str) -> None:
 @click.argument("name")
 @click.option("--tail", default=100, help="Number of lines to return")
 @click.option("--since", help="Time filter (e.g., '5m', '1h', ISO timestamp)")
-def logs(name: str, tail: int, since: Optional[str]) -> None:
+def logs(name: str, tail: int, since: str | None) -> None:
     """Get logs for a process."""
     # Placeholder for Phase 3
     output_json(

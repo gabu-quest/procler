@@ -614,6 +614,42 @@ procgler serve                # Serves everything
 
 ---
 
+### Phase 13: PyPI Publishing
+**Goal:** Package and publish to PyPI for easy installation
+
+**Deliverables:**
+- [ ] Finalize pyproject.toml metadata (author, classifiers, URLs)
+- [ ] Add project URLs (homepage, repository, documentation)
+- [ ] Create CHANGELOG.md with release notes
+- [ ] Set up GitHub Actions for automated publishing
+- [ ] Configure trusted publishing with PyPI
+- [ ] Publish initial release to PyPI
+- [ ] Verify `pip install procgler` works
+
+**Acceptance Criteria:**
+```bash
+# Installation from PyPI
+pip install procgler
+
+# Verify installation
+procgler --version
+# procgler, version 0.1.0
+
+procgler capabilities
+# Returns JSON schema
+```
+
+**Publishing Workflow:**
+```bash
+# Build package
+python -m build
+
+# Upload to PyPI (via GitHub Actions or manual)
+python -m twine upload dist/*
+```
+
+---
+
 ## Dependencies
 
 ### pyproject.toml
@@ -622,13 +658,13 @@ procgler serve                # Serves everything
 name = "procgler"
 version = "0.1.0"
 description = "LLM-first process manager for developers"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
     "click>=8.1.0",
     "docker>=7.0.0",
-    "sqler>=0.1.0",
+    "sqler>=1.0.0",
     "websockets>=12.0",
 ]
 

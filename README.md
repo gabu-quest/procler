@@ -75,7 +75,7 @@ procgler serve
 
 | Layer | Technology |
 |-------|------------|
-| Backend | Python 3.11+, FastAPI |
+| Backend | Python 3.12+, FastAPI |
 | Database | SQLite via sqler |
 | Frontend | Vue 3, Vite, Pinia |
 | CLI | Click |
