@@ -37,7 +37,17 @@ procgler/
 │           ├── logs.py         # Log retrieval
 │           ├── snippets.py     # Snippet CRUD & run
 │           └── ws.py           # WebSocket real-time
-├── frontend/                   # Vue 3 dashboard (Phase 8+)
+├── frontend/                   # Vue 3 dashboard
+│   ├── src/
+│   │   ├── main.ts             # App entry point
+│   │   ├── App.vue             # Root component with theme
+│   │   ├── router.ts           # Vue Router config
+│   │   ├── design/             # Cyberpunk design system
+│   │   ├── stores/             # Pinia state (processes, snippets)
+│   │   ├── composables/        # useWebSocket, etc.
+│   │   ├── components/         # AppLayout, etc.
+│   │   └── views/              # ProcessesView, ProcessDetailView, SnippetsView
+│   └── package.json
 └── tests/                      # pytest tests (91 tests)
 ```
 
@@ -47,7 +57,7 @@ procgler/
 
 - **Backend:** Python 3.12+, FastAPI, Click CLI
 - **Database:** SQLite via [sqler](https://pypi.org/project/sqler/) (JSON-first micro-ORM)
-- **Frontend:** Vue 3, Vite, Pinia (Phase 8+)
+- **Frontend:** Vue 3, Vite, Pinia, Naive UI (Cyberpunk theme)
 - **Docker:** docker-py SDK for container operations
 - **Real-time:** WebSockets (native FastAPI)
 
@@ -184,6 +194,42 @@ uv run pytest tests/ -v
 
 # Run dev server
 uv run python -m procgler serve --reload
+
+# Frontend development
+cd frontend && npm install && npm run dev
+```
+
+---
+
+## Frontend
+
+The Vue 3 dashboard uses the **Cyberpunk** design system with:
+
+- **Naive UI** - Component library with custom theme overrides
+- **Pinia** - State management for processes and snippets
+- **WebSocket** - Real-time log streaming and status updates
+- **Phosphor Icons** - Consistent iconography
+
+### Frontend Structure
+
+| Path | Purpose |
+|------|---------|
+| `src/design/tokens.ts` | Design system tokens (colors, spacing, etc.) |
+| `src/design/naive-theme.ts` | Naive UI theme overrides |
+| `src/stores/processes.ts` | Process state and API calls |
+| `src/stores/snippets.ts` | Snippet state and API calls |
+| `src/composables/useWebSocket.ts` | WebSocket connection management |
+| `src/views/ProcessesView.vue` | Process list with CRUD |
+| `src/views/ProcessDetailView.vue` | Process detail with live logs |
+| `src/views/SnippetsView.vue` | Snippet management |
+
+### Running Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev      # Development server at :5173 (proxies /api to :8000)
+npm run build    # Production build to dist/
 ```
 
 ---
@@ -199,7 +245,7 @@ uv run python -m procgler serve --reload
 | 5 | Snippets | ✅ |
 | 6 | FastAPI Backend | ✅ |
 | 7 | WebSocket Real-time | ✅ |
-| 8-11 | Vue Frontend | 🔲 |
+| 8-11 | Vue Frontend | ✅ |
 | 12 | Production Polish | 🔲 |
 | 13 | PyPI Publishing | 🔲 |
 

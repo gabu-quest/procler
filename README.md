@@ -7,7 +7,7 @@ Procgler gives developers (and their AI coding assistants) a single pane of glas
 ## Features
 
 - **LLM-First CLI** - JSON-native commands designed for Claude Code integration
-- **Web Dashboard** - REST API + WebSocket real-time updates (Vue frontend coming soon)
+- **Web Dashboard** - Vue 3 dashboard with Cyberpunk design system, real-time updates
 - **Dual Interface Parity** - CLI and Web UI share the same ProcessManager core
 - **Context Abstraction** - Manage local processes and Docker containers uniformly
 - **Snippets** - Save and reuse common commands with tagging
@@ -165,7 +165,7 @@ ws.send(JSON.stringify({action: "subscribe_status"}));
 |-------|------------|
 | Backend | Python 3.12+, FastAPI |
 | Database | SQLite via [sqler](https://pypi.org/project/sqler/) |
-| Frontend | Vue 3, Vite, Pinia (coming soon) |
+| Frontend | Vue 3, Vite, Pinia, Naive UI |
 | CLI | Click |
 | Docker | docker-py SDK |
 | Real-time | WebSockets |
@@ -184,7 +184,30 @@ uv run python -m procgler --help
 
 # Run dev server with hot reload
 uv run python -m procgler serve --reload
+
+# Frontend development
+cd frontend && npm install && npm run dev
 ```
+
+## Web Dashboard
+
+The Vue 3 frontend provides a visual interface for managing processes and snippets:
+
+- **Process List** - View all defined processes with status, start/stop/restart controls
+- **Process Detail** - Live log streaming via WebSocket, process info
+- **Snippets** - Save, manage, and run reusable commands
+
+### Running the Dashboard
+
+```bash
+# Terminal 1: Start the backend
+uv run python -m procgler serve --reload
+
+# Terminal 2: Start the frontend dev server
+cd frontend && npm run dev
+```
+
+Open http://localhost:5173 to access the dashboard.
 
 ## Claude Code Integration
 
