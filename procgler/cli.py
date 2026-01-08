@@ -258,28 +258,16 @@ def capabilities() -> None:
 @click.argument("name", required=False)
 def status(name: str | None) -> None:
     """Show status of all processes or a specific one."""
-    from .db import init_database
-    from .models import Process
+    import asyncio
 
-    init_database()
+    from .core import get_process_manager
 
-    if name:
-        process = _get_process_by_name(name)
-        if not process:
-            output_json(
-                error_response(
-                    f"Process '{name}' not found",
-                    error_code="process_not_found",
-                    suggestion="Run 'procgler list' to see available processes",
-                )
-            )
-            sys.exit(1)
+    manager = get_process_manager()
+    result = asyncio.run(manager.status(name))
 
-        output_json(success_response({"process": _process_to_dict(process)}))
-    else:
-        processes = Process.query().all()
-        process_data = [_process_to_dict(p) for p in processes]
-        output_json(success_response({"processes": process_data}))
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
 
 
 @cli.command("list")
@@ -416,45 +404,48 @@ def remove(name: str) -> None:
 @click.argument("name")
 def start(name: str) -> None:
     """Start a process (idempotent - no-op if running)."""
-    # Placeholder for Phase 2
-    output_json(
-        error_response(
-            "Process management not yet implemented",
-            error_code="not_implemented",
-            suggestion="This feature will be available in Phase 2",
-        )
-    )
-    sys.exit(1)
+    import asyncio
+
+    from .core import get_process_manager
+
+    manager = get_process_manager()
+    result = asyncio.run(manager.start(name))
+
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
 
 
 @cli.command()
 @click.argument("name")
 def stop(name: str) -> None:
     """Stop a process (idempotent - no-op if stopped)."""
-    # Placeholder for Phase 2
-    output_json(
-        error_response(
-            "Process management not yet implemented",
-            error_code="not_implemented",
-            suggestion="This feature will be available in Phase 2",
-        )
-    )
-    sys.exit(1)
+    import asyncio
+
+    from .core import get_process_manager
+
+    manager = get_process_manager()
+    result = asyncio.run(manager.stop(name))
+
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
 
 
 @cli.command()
 @click.argument("name")
 def restart(name: str) -> None:
     """Restart a process (stop then start)."""
-    # Placeholder for Phase 2
-    output_json(
-        error_response(
-            "Process management not yet implemented",
-            error_code="not_implemented",
-            suggestion="This feature will be available in Phase 2",
-        )
-    )
-    sys.exit(1)
+    import asyncio
+
+    from .core import get_process_manager
+
+    manager = get_process_manager()
+    result = asyncio.run(manager.restart(name))
+
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
 
 
 @cli.command()
