@@ -261,7 +261,7 @@ Environment variables:
 | 7 | WebSocket Real-time | ✅ |
 | 8-11 | Vue Frontend | ✅ |
 | 12 | Production Polish | ✅ |
-| 13 | PyPI Publishing | 🔲 |
+| 13 | PyPI Publishing | ✅ |
 
 ---
 
