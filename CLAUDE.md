@@ -232,6 +232,20 @@ npm run dev      # Development server at :5173 (proxies /api to :8000)
 npm run build    # Production build to dist/
 ```
 
+### Production Deployment
+
+```bash
+# Build frontend to static/
+./scripts/build_frontend.sh
+
+# Start production server (serves both API and frontend)
+procgler serve --host 0.0.0.0 --port 8000
+```
+
+Environment variables:
+- `PROCGLER_CORS_ORIGINS` - Comma-separated list of allowed origins
+- `PROCGLER_DEBUG` - Show detailed error messages (for debugging)
+
 ---
 
 ## Implementation Status
@@ -246,7 +260,7 @@ npm run build    # Production build to dist/
 | 6 | FastAPI Backend | ✅ |
 | 7 | WebSocket Real-time | ✅ |
 | 8-11 | Vue Frontend | ✅ |
-| 12 | Production Polish | 🔲 |
+| 12 | Production Polish | ✅ |
 | 13 | PyPI Publishing | 🔲 |
 
 ---

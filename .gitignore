@@ -48,7 +48,7 @@ htmlcov/
 # Local data
 .procgler/
 
-# Frontend build (later phases)
+# Frontend build
 procgler/static/
 frontend/node_modules/
 frontend/dist/
