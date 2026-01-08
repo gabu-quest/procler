@@ -454,15 +454,65 @@ def restart(name: str) -> None:
 @click.option("--since", help="Time filter (e.g., '5m', '1h', ISO timestamp)")
 def logs(name: str, tail: int, since: str | None) -> None:
     """Get logs for a process."""
-    # Placeholder for Phase 3
-    output_json(
-        error_response(
-            "Log retrieval not yet implemented",
-            error_code="not_implemented",
-            suggestion="This feature will be available in Phase 3",
+    import asyncio
+
+    from .core import get_process_manager
+
+    manager = get_process_manager()
+    result = asyncio.run(manager.logs(name, tail=tail, since=since))
+
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
+
+
+@cli.command("exec")
+@click.argument("command")
+@click.option(
+    "--context",
+    type=click.Choice(["local", "docker"]),
+    default="local",
+    help="Execution context",
+)
+@click.option("--container", help="Docker container name")
+@click.option("--cwd", help="Working directory")
+@click.option("--timeout", default=60.0, help="Maximum execution time in seconds")
+def exec_cmd(
+    command: str,
+    context: str,
+    container: str | None,
+    cwd: str | None,
+    timeout: float,
+) -> None:
+    """Execute an arbitrary command."""
+    import asyncio
+
+    from .core import get_process_manager
+
+    if context == "docker" and not container:
+        output_json(
+            error_response(
+                "Container name required for docker context",
+                error_code="missing_container",
+                suggestion="Use --container <name> to specify the Docker container",
+            )
+        )
+        sys.exit(1)
+
+    manager = get_process_manager()
+    result = asyncio.run(
+        manager.exec_command(
+            command=command,
+            context_type=context,
+            container_name=container,
+            cwd=cwd,
+            timeout=timeout,
         )
     )
-    sys.exit(1)
+
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

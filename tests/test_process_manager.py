@@ -1,39 +1,10 @@
 """Tests for process management."""
 
-import asyncio
 import json
-import tempfile
-from pathlib import Path
 
-import pytest
 from click.testing import CliRunner
 
-from procgler import db
 from procgler.cli import cli
-from procgler.core import get_process_manager
-from procgler.models import Process
-
-
-@pytest.fixture(autouse=True)
-def reset_all():
-    """Reset database and process manager between tests."""
-    db.reset_database()
-    # Reset the global process manager singleton
-    import procgler.core.process_manager as pm
-    pm._manager = None
-    yield
-    db.reset_database()
-    pm._manager = None
-
-
-@pytest.fixture
-def temp_db():
-    """Create a temporary database for testing."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        database = db.init_database(db_path)
-        yield database
-        db.reset_database()
 
 
 def test_define_process():

@@ -1,15 +1,53 @@
 """Central process manager coordinating all process operations."""
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqler.query import SQLerField as F
 
 from ..db import init_database
 from ..models import LogEntry, Process, ProcessStatus
-from .context_base import ExecutionContext, ProcessHandle
+from .context_base import ExecResult, ExecutionContext, ProcessHandle
 from .context_local import LocalContext, get_local_context
+
+# Default max log entries per process
+DEFAULT_MAX_LOGS = 10000
+
+
+def parse_duration(duration: str) -> int:
+    """Parse a duration string like '5m', '1h', '30s' to seconds."""
+    if not duration:
+        return 0
+
+    duration = duration.strip().lower()
+
+    # Try ISO timestamp first
+    try:
+        dt = datetime.fromisoformat(duration)
+        return int((datetime.now() - dt).total_seconds())
+    except ValueError:
+        pass
+
+    multipliers = {
+        's': 1,
+        'm': 60,
+        'h': 3600,
+        'd': 86400,
+    }
+
+    if duration[-1] in multipliers:
+        try:
+            value = int(duration[:-1])
+            return value * multipliers[duration[-1]]
+        except ValueError:
+            pass
+
+    # Try as raw seconds
+    try:
+        return int(duration)
+    except ValueError:
+        raise ValueError(f"Invalid duration format: {duration}")
 
 
 class ProcessManager:
@@ -372,6 +410,182 @@ class ProcessManager:
             "exit_code": process.exit_code,
             "error_message": process.error_message,
         }
+
+    async def logs(
+        self,
+        name: str,
+        tail: int = 100,
+        since: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Get logs for a process.
+
+        Args:
+            name: Process name
+            tail: Number of lines to return (most recent)
+            since: Time filter (e.g., '5m', '1h', ISO timestamp)
+
+        Returns a dict with logs (for JSON output).
+        """
+        init_database()
+        process = self._get_process_by_name(name)
+
+        if not process:
+            return {
+                "success": False,
+                "error": f"Process '{name}' not found",
+                "error_code": "process_not_found",
+            }
+
+        # Build query for logs
+        query = LogEntry.query().filter(F("process_id") == process._id)
+
+        # Apply time filter if specified
+        if since:
+            try:
+                seconds_ago = parse_duration(since)
+                cutoff = datetime.now() - timedelta(seconds=seconds_ago)
+                cutoff_str = cutoff.isoformat()
+                query = query.filter(F("timestamp") >= cutoff_str)
+            except ValueError as e:
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "error_code": "invalid_duration",
+                }
+
+        # Get logs ordered by timestamp descending, limited by tail
+        # sqler doesn't have ORDER BY in query builder, so we fetch all and sort in Python
+        all_logs = query.all()
+
+        # Sort by timestamp descending
+        all_logs.sort(key=lambda x: x.timestamp or "", reverse=True)
+
+        # Take the last `tail` entries and reverse for chronological order
+        logs_subset = all_logs[:tail]
+        logs_subset.reverse()
+
+        log_entries = [
+            {
+                "timestamp": entry.timestamp,
+                "stream": entry.stream,
+                "line": entry.line,
+            }
+            for entry in logs_subset
+        ]
+
+        return {
+            "success": True,
+            "data": {
+                "process": name,
+                "logs": log_entries,
+                "count": len(log_entries),
+            },
+        }
+
+    async def exec_command(
+        self,
+        command: str,
+        context_type: str = "local",
+        container_name: str | None = None,
+        cwd: str | None = None,
+        timeout: float = 60.0,
+    ) -> dict[str, Any]:
+        """
+        Execute an arbitrary command.
+
+        Args:
+            command: The command to execute
+            context_type: Execution context ('local' or 'docker')
+            container_name: Docker container name (required if context=docker)
+            cwd: Working directory
+            timeout: Maximum execution time in seconds
+
+        Returns a dict with execution result (for JSON output).
+        """
+        init_database()
+
+        if context_type == "docker":
+            return {
+                "success": False,
+                "error": "Docker context not yet implemented",
+                "error_code": "not_implemented",
+                "suggestion": "Use --context local or wait for Phase 4",
+            }
+
+        context = self._get_context(context_type)
+
+        try:
+            result: ExecResult = await context.exec_command(
+                command=command,
+                cwd=cwd,
+                timeout=timeout,
+            )
+
+            return {
+                "success": True,
+                "data": {
+                    "stdout": result.stdout,
+                    "stderr": result.stderr,
+                    "exit_code": result.exit_code,
+                },
+            }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to execute command: {e}",
+                "error_code": "exec_failed",
+            }
+
+    def rotate_logs(self, process_id: int, max_entries: int = DEFAULT_MAX_LOGS) -> int:
+        """
+        Rotate logs for a process, keeping only the most recent entries.
+
+        Args:
+            process_id: The process ID
+            max_entries: Maximum number of log entries to keep
+
+        Returns the number of entries deleted.
+        """
+        init_database()
+
+        # Get all logs for this process
+        all_logs = LogEntry.query().filter(F("process_id") == process_id).all()
+
+        if len(all_logs) <= max_entries:
+            return 0
+
+        # Sort by timestamp descending
+        all_logs.sort(key=lambda x: x.timestamp or "", reverse=True)
+
+        # Keep the most recent max_entries, delete the rest
+        logs_to_delete = all_logs[max_entries:]
+        deleted_count = 0
+
+        for log in logs_to_delete:
+            log.delete()
+            deleted_count += 1
+
+        return deleted_count
+
+    def cleanup_all_logs(self, max_entries_per_process: int = DEFAULT_MAX_LOGS) -> dict[str, int]:
+        """
+        Rotate logs for all processes.
+
+        Returns a dict mapping process names to deleted counts.
+        """
+        init_database()
+
+        processes = Process.query().all()
+        results = {}
+
+        for process in processes:
+            deleted = self.rotate_logs(process._id, max_entries_per_process)
+            if deleted > 0:
+                results[process.name] = deleted
+
+        return results
 
 
 # Global singleton
