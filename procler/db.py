@@ -1,10 +1,10 @@
-"""Database initialization for Procgler using sqler."""
+"""Database initialization for Procler using sqler."""
 
 from pathlib import Path
 
 from sqler import SQLerDB
 
-from .config import get_db_path
+from .settings import get_db_path
 from .models import LogEntry, Process, Snippet
 
 # Global database instance

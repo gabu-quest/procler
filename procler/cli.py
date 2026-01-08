@@ -1,8 +1,9 @@
-"""CLI interface for Procgler."""
+"""CLI interface for Procler."""
 
 import json
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import click
@@ -207,6 +208,70 @@ CLI_SCHEMA = {
                 {"name": "--port", "required": False, "default": 8000, "description": "Port to bind"},
                 {"name": "--reload", "required": False, "is_flag": True, "description": "Enable hot reload"},
             ],
+        },
+        "group": {
+            "description": "Manage process groups",
+            "subcommands": {
+                "list": {
+                    "description": "List all groups",
+                },
+                "start": {
+                    "description": "Start all processes in a group (in order)",
+                    "arguments": [
+                        {"name": "name", "required": True, "description": "Group name"}
+                    ],
+                },
+                "stop": {
+                    "description": "Stop all processes in a group (in reverse order)",
+                    "arguments": [
+                        {"name": "name", "required": True, "description": "Group name"}
+                    ],
+                },
+                "status": {
+                    "description": "Get status of all processes in a group",
+                    "arguments": [
+                        {"name": "name", "required": True, "description": "Group name"}
+                    ],
+                },
+            },
+        },
+        "recipe": {
+            "description": "Manage and run recipes (multi-step operations)",
+            "subcommands": {
+                "list": {
+                    "description": "List all recipes",
+                },
+                "show": {
+                    "description": "Show recipe details and steps",
+                    "arguments": [
+                        {"name": "name", "required": True, "description": "Recipe name"}
+                    ],
+                },
+                "run": {
+                    "description": "Execute a recipe",
+                    "arguments": [
+                        {"name": "name", "required": True, "description": "Recipe name"}
+                    ],
+                    "options": [
+                        {"name": "--dry-run", "required": False, "is_flag": True, "description": "Show what would happen without executing"},
+                        {"name": "--continue-on-error", "required": False, "is_flag": True, "description": "Continue execution even if a step fails"},
+                    ],
+                },
+            },
+        },
+        "config": {
+            "description": "Manage configuration",
+            "subcommands": {
+                "init": {
+                    "description": "Initialize .procler/ config directory with template",
+                },
+                "validate": {
+                    "description": "Validate config.yaml syntax and references",
+                },
+                "path": {
+                    "description": "Show the config directory path",
+                },
+            },
         },
     },
 }
@@ -632,6 +697,258 @@ def serve(host: str, port: int, reload: bool) -> None:
         host=host,
         port=port,
         reload=reload,
+    )
+
+
+# Group subcommands
+@cli.group()
+def group() -> None:
+    """Manage process groups (defined in config.yaml)."""
+    pass
+
+
+@group.command("list")
+def group_list() -> None:
+    """List all defined groups."""
+    from .core import get_group_manager
+
+    manager = get_group_manager()
+    result = manager.list_groups()
+    output_json(result)
+
+
+@group.command("start")
+@click.argument("name")
+def group_start(name: str) -> None:
+    """Start all processes in a group (in order)."""
+    import asyncio
+
+    from .core import get_group_manager
+
+    manager = get_group_manager()
+    result = asyncio.run(manager.start_group(name))
+
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
+
+
+@group.command("stop")
+@click.argument("name")
+def group_stop(name: str) -> None:
+    """Stop all processes in a group (in reverse order)."""
+    import asyncio
+
+    from .core import get_group_manager
+
+    manager = get_group_manager()
+    result = asyncio.run(manager.stop_group(name))
+
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
+
+
+@group.command("status")
+@click.argument("name")
+def group_status(name: str) -> None:
+    """Get status of all processes in a group."""
+    import asyncio
+
+    from .core import get_group_manager
+
+    manager = get_group_manager()
+    result = asyncio.run(manager.status_group(name))
+
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
+
+
+# Recipe subcommands
+@cli.group()
+def recipe() -> None:
+    """Manage and run recipes (multi-step operations)."""
+    pass
+
+
+@recipe.command("list")
+def recipe_list() -> None:
+    """List all defined recipes."""
+    from .core import get_recipe_executor
+
+    executor = get_recipe_executor()
+    result = executor.list_recipes()
+    output_json(result)
+
+
+@recipe.command("show")
+@click.argument("name")
+def recipe_show(name: str) -> None:
+    """Show recipe details and steps."""
+    from .core import get_recipe_executor
+
+    executor = get_recipe_executor()
+    result = executor.get_recipe(name)
+
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
+
+
+@recipe.command("run")
+@click.argument("name")
+@click.option("--dry-run", is_flag=True, help="Show what would happen without executing")
+@click.option("--continue-on-error", is_flag=True, help="Continue execution even if a step fails")
+def recipe_run(name: str, dry_run: bool, continue_on_error: bool) -> None:
+    """Execute a recipe."""
+    import asyncio
+
+    from .core import get_recipe_executor
+
+    executor = get_recipe_executor()
+
+    # Only pass continue_on_error if explicitly set
+    kwargs = {"dry_run": dry_run}
+    if continue_on_error:
+        kwargs["continue_on_error"] = True
+
+    result = asyncio.run(executor.run_recipe(name, **kwargs))
+
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
+
+
+# Config subcommands
+@cli.group()
+def config() -> None:
+    """Manage configuration (config.yaml)."""
+    pass
+
+
+@config.command("init")
+@click.option("--force", is_flag=True, help="Overwrite existing config")
+def config_init(force: bool) -> None:
+    """Initialize .procler/ config directory with template."""
+    from .config import find_config_dir, generate_template_config, get_config_file_path
+
+    config_dir = find_config_dir()
+    config_file = config_dir / "config.yaml"
+
+    # Create directory if needed
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    if config_file.exists() and not force:
+        output_json(
+            error_response(
+                f"Config file already exists: {config_file}",
+                error_code="config_exists",
+                suggestion="Use --force to overwrite",
+            )
+        )
+        sys.exit(1)
+
+    # Write template
+    template = generate_template_config()
+    config_file.write_text(template)
+
+    # Create .gitignore for state.db
+    gitignore = config_dir / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text("# Runtime state - not version controlled\nstate.db\n")
+
+    output_json(
+        success_response(
+            {
+                "action": "initialized",
+                "config_dir": str(config_dir),
+                "config_file": str(config_file),
+                "files_created": ["config.yaml", ".gitignore"],
+            }
+        )
+    )
+
+
+@config.command("validate")
+def config_validate() -> None:
+    """Validate config.yaml syntax and references."""
+    from .config import load_config, get_config_file_path, reload_config
+
+    config_path = get_config_file_path()
+
+    if not config_path.exists():
+        output_json(
+            error_response(
+                f"Config file not found: {config_path}",
+                error_code="config_not_found",
+                suggestion="Run 'procler config init' to create one",
+            )
+        )
+        sys.exit(1)
+
+    try:
+        # Force reload to catch parse errors
+        cfg = reload_config()
+        errors = cfg.validate_references()
+
+        if errors:
+            output_json(
+                error_response(
+                    "Config validation failed",
+                    error_code="validation_failed",
+                    errors=errors,
+                )
+            )
+            sys.exit(1)
+
+        output_json(
+            success_response(
+                {
+                    "valid": True,
+                    "config_file": str(config_path),
+                    "summary": {
+                        "processes": len(cfg.processes),
+                        "groups": len(cfg.groups),
+                        "recipes": len(cfg.recipes),
+                        "snippets": len(cfg.snippets),
+                    },
+                }
+            )
+        )
+
+    except Exception as e:
+        output_json(
+            error_response(
+                f"Failed to parse config: {e}",
+                error_code="parse_error",
+            )
+        )
+        sys.exit(1)
+
+
+@config.command("path")
+def config_path() -> None:
+    """Show the config directory path."""
+    from .config import find_config_dir, get_config_file_path, get_changelog_path, get_state_db_path
+
+    config_dir = find_config_dir()
+
+    output_json(
+        success_response(
+            {
+                "config_dir": str(config_dir),
+                "config_file": str(get_config_file_path()),
+                "changelog": str(get_changelog_path()),
+                "state_db": str(get_state_db_path()),
+                "exists": {
+                    "config_dir": config_dir.exists(),
+                    "config_file": get_config_file_path().exists(),
+                    "changelog": get_changelog_path().exists(),
+                    "state_db": get_state_db_path().exists(),
+                },
+            }
+        )
     )
 
 
