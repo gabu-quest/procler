@@ -614,5 +614,26 @@ def snippet_remove(name: str) -> None:
         sys.exit(1)
 
 
+@cli.command()
+@click.option("--host", default="127.0.0.1", help="Host to bind")
+@click.option("--port", default=8000, help="Port to bind")
+@click.option("--reload", is_flag=True, help="Enable hot reload")
+def serve(host: str, port: int, reload: bool) -> None:
+    """Start the web server."""
+    import uvicorn
+
+    from .db import init_database
+
+    # Initialize database before starting server
+    init_database()
+
+    uvicorn.run(
+        "procgler.api:app",
+        host=host,
+        port=port,
+        reload=reload,
+    )
+
+
 if __name__ == "__main__":
     cli()
