@@ -1,5 +1,5 @@
 """API route modules."""
 
-from . import logs, processes, snippets
+from . import logs, processes, snippets, ws
 
-__all__ = ["logs", "processes", "snippets"]
+__all__ = ["logs", "processes", "snippets", "ws"]

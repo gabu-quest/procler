@@ -27,11 +27,12 @@ def create_app() -> FastAPI:
     )
 
     # Include routers
-    from .routes import logs, processes, snippets
+    from .routes import logs, processes, snippets, ws
 
     app.include_router(processes.router, prefix="/api/processes", tags=["processes"])
     app.include_router(logs.router, prefix="/api/logs", tags=["logs"])
     app.include_router(snippets.router, prefix="/api/snippets", tags=["snippets"])
+    app.include_router(ws.router, prefix="/api", tags=["websocket"])
 
     @app.get("/api/health")
     async def health_check():

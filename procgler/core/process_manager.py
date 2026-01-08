@@ -11,6 +11,7 @@ from ..models import LogEntry, Process, ProcessStatus
 from .context_base import ExecResult, ExecutionContext, ProcessHandle
 from .context_docker import get_docker_context, is_docker_available
 from .context_local import LocalContext, get_local_context
+from .events import EVENT_LOG_ENTRY, EVENT_STATUS_CHANGE, get_event_bus
 
 # Default max log entries per process
 DEFAULT_MAX_LOGS = 10000
@@ -84,13 +85,25 @@ class ProcessManager:
     def _log_callback(self, process_id: int, stream: str):
         """Create a callback for logging output."""
         def callback(line: str) -> None:
+            timestamp = datetime.now().isoformat()
             entry = LogEntry(
                 process_id=process_id,
                 stream=stream,
                 line=line,
-                timestamp=datetime.now().isoformat(),
+                timestamp=timestamp,
             )
             entry.save()
+
+            # Emit event for WebSocket broadcast
+            get_event_bus().emit_sync(
+                EVENT_LOG_ENTRY,
+                {
+                    "process_id": process_id,
+                    "stream": stream,
+                    "line": line,
+                    "timestamp": timestamp,
+                },
+            )
         return callback
 
     def _exit_callback(self, process: Process):
@@ -106,6 +119,18 @@ class ProcessManager:
                 # Remove handle
                 if process._id in self._handles:
                     del self._handles[process._id]
+
+                # Emit status change event
+                get_event_bus().emit_sync(
+                    EVENT_STATUS_CHANGE,
+                    {
+                        "process_id": process._id,
+                        "name": updated.name,
+                        "status": updated.status,
+                        "exit_code": exit_code,
+                        "pid": None,
+                    },
+                )
         return callback
 
     async def start(self, name: str) -> dict[str, Any]:
@@ -207,6 +232,17 @@ class ProcessManager:
             # Store handle
             self._handles[process._id] = handle
 
+            # Emit status change event
+            get_event_bus().emit_sync(
+                EVENT_STATUS_CHANGE,
+                {
+                    "process_id": process._id,
+                    "name": process.name,
+                    "status": process.status,
+                    "pid": process.pid,
+                },
+            )
+
             return {
                 "success": True,
                 "data": {
@@ -282,6 +318,18 @@ class ProcessManager:
             if process._id in self._handles:
                 del self._handles[process._id]
 
+            # Emit status change event
+            get_event_bus().emit_sync(
+                EVENT_STATUS_CHANGE,
+                {
+                    "process_id": process._id,
+                    "name": process.name,
+                    "status": process.status,
+                    "exit_code": exit_code,
+                    "pid": None,
+                },
+            )
+
             return {
                 "success": True,
                 "data": {
@@ -295,6 +343,17 @@ class ProcessManager:
             process.status = ProcessStatus.ERROR.value
             process.error_message = str(e)
             process.save()
+
+            # Emit error status event
+            get_event_bus().emit_sync(
+                EVENT_STATUS_CHANGE,
+                {
+                    "process_id": process._id,
+                    "name": process.name,
+                    "status": process.status,
+                    "error_message": str(e),
+                },
+            )
 
             return {
                 "success": False,
