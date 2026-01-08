@@ -50,13 +50,14 @@ procler/
 │   │   ├── loader.py           # Config discovery and loading
 │   │   └── changelog.py        # Append-only audit trail
 │   ├── core/                   # Shared business logic
-│   │   ├── process_manager.py  # Central coordinator
+│   │   ├── process_manager.py  # Central coordinator + Linux state detection
 │   │   ├── context_base.py     # Abstract ExecutionContext
 │   │   ├── context_local.py    # Subprocess implementation
 │   │   ├── context_docker.py   # Docker SDK implementation
 │   │   ├── snippets.py         # Snippet operations
-│   │   ├── groups.py           # Group operations (ordered start/stop)
+│   │   ├── groups.py           # Group operations (ordered start/stop + dependencies)
 │   │   ├── recipes.py          # Recipe executor (multi-step)
+│   │   ├── health.py           # Health check monitoring
 │   │   └── events.py           # EventBus for real-time updates
 │   └── api/                    # FastAPI application
 │       ├── app.py              # App factory
@@ -75,7 +76,7 @@ procler/
 │   │   ├── stores/             # Pinia state management
 │   │   └── ...
 │   └── package.json
-└── tests/                      # pytest tests (91 tests)
+└── tests/                      # pytest tests (135 tests)
 ```
 
 ---
@@ -128,6 +129,19 @@ processes:
     cwd: /path/to/project
     tags: [backend, api]
     description: "API server"
+    healthcheck:                  # Optional health monitoring
+      test: "curl -f http://localhost:8000/health"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  worker:
+    command: celery worker
+    depends_on:                   # Start dependencies
+      - redis                     # Simple: wait for 'started'
+      - name: api
+        condition: healthy        # Wait for health check to pass
 
 groups:
   backend:
@@ -274,6 +288,60 @@ GET    /api/health                 # {"status": "healthy", "version": "..."}
 
 ---
 
+## Linux Process States
+
+Process status includes Linux kernel state from `/proc/[pid]/stat`:
+
+| Code | Name | Description |
+|------|------|-------------|
+| R | running | Running or on run queue |
+| S | sleeping | Interruptible sleep (normal) |
+| D | disk_sleep | **Uninterruptible sleep - CANNOT BE KILLED** |
+| Z | zombie | Terminated but not reaped by parent |
+| T | stopped | Stopped by job control signal |
+| t | tracing_stop | Stopped by debugger |
+
+Status output includes warnings for problematic states:
+```json
+{
+  "linux_state": {
+    "state_code": "D",
+    "state_name": "disk_sleep",
+    "state_description": "Uninterruptible sleep (usually I/O) - CANNOT BE KILLED",
+    "is_killable": false
+  },
+  "warning": "Process in D state cannot be killed - typically waiting on I/O"
+}
+```
+
+---
+
+## Health Checks & Dependencies
+
+### Health Check Config
+```yaml
+healthcheck:
+  test: "curl -f http://localhost:8000/health"  # Command to run
+  interval: 10s       # How often to check
+  timeout: 5s         # Max time for check command
+  retries: 3          # Failures before 'unhealthy'
+  start_period: 30s   # Grace period after start
+```
+
+### Dependency Conditions
+```yaml
+depends_on:
+  - redis                      # condition: started (default)
+  - name: api
+    condition: healthy         # Wait for health check pass
+```
+
+When starting a group, processes wait for their dependencies:
+- `started`: Dependency process is running
+- `healthy`: Dependency passes health check
+
+---
+
 ## WebSocket Protocol
 
 Connect to `ws://localhost:8000/api/ws`
@@ -344,7 +412,7 @@ uv sync --all-extras
 # Run CLI
 uv run python -m procler --help
 
-# Run tests (91 tests)
+# Run tests (135 tests)
 uv run pytest tests/ -v
 
 # Dev server

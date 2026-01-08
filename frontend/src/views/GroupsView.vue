@@ -80,6 +80,34 @@
                   >
                     {{ groupStatuses[group.name][proc].status }}
                   </n-tag>
+                  <!-- Linux state warning -->
+                  <n-tooltip v-if="groupStatuses[group.name]?.[proc]?.linux_state?.state_code === 'D'">
+                    <template #trigger>
+                      <n-tag type="error" size="small">D (unkillable)</n-tag>
+                    </template>
+                    {{ groupStatuses[group.name]?.[proc]?.linux_state?.state_description }}
+                  </n-tooltip>
+                  <n-tooltip v-else-if="groupStatuses[group.name]?.[proc]?.linux_state?.state_code === 'Z'">
+                    <template #trigger>
+                      <n-tag type="warning" size="small">Z (zombie)</n-tag>
+                    </template>
+                    {{ groupStatuses[group.name]?.[proc]?.linux_state?.state_description }}
+                  </n-tooltip>
+                  <!-- Health status -->
+                  <n-tag
+                    v-if="groupStatuses[group.name]?.[proc]?.health"
+                    :type="healthType(groupStatuses[group.name]?.[proc]?.health?.status ?? 'unknown')"
+                    size="small"
+                  >
+                    {{ groupStatuses[group.name]?.[proc]?.health?.status }}
+                  </n-tag>
+                  <!-- Dependencies -->
+                  <n-tooltip v-if="groupStatuses[group.name]?.[proc]?.depends_on?.length">
+                    <template #trigger>
+                      <PhArrowBendDownRight class="dep-icon" />
+                    </template>
+                    Depends on: {{ formatDependencies(groupStatuses[group.name]?.[proc]?.depends_on) }}
+                  </n-tooltip>
                 </div>
               </div>
 
@@ -135,16 +163,23 @@ import {
   NSpace,
   NDivider,
   NEmpty,
+  NTooltip,
   useMessage,
 } from "naive-ui";
-import { PhPlay, PhStop, PhArrowsClockwise, PhCheckCircle, PhXCircle } from "@phosphor-icons/vue";
+import { PhPlay, PhStop, PhArrowsClockwise, PhCheckCircle, PhXCircle, PhArrowBendDownRight } from "@phosphor-icons/vue";
 import { useGroupStore } from "@/stores/groups";
 
 const store = useGroupStore();
 const message = useMessage();
 
 const isStarting = ref(true);
-const groupStatuses = reactive<Record<string, Record<string, { status: string }>>>({});
+interface ProcessStatus {
+  status: string;
+  linux_state?: { state_code: string; state_description: string };
+  health?: { status: string };
+  depends_on?: { name: string; condition: string }[];
+}
+const groupStatuses = reactive<Record<string, Record<string, ProcessStatus>>>({});
 const lastResults = reactive<Record<string, { success: boolean; results: { process: string; success: boolean; error?: string }[] }>>({});
 
 function statusType(status: string) {
@@ -160,6 +195,24 @@ function statusType(status: string) {
     default:
       return "default";
   }
+}
+
+function healthType(status: string) {
+  switch (status) {
+    case "healthy":
+      return "success";
+    case "unhealthy":
+      return "error";
+    case "starting":
+      return "info";
+    default:
+      return "default";
+  }
+}
+
+function formatDependencies(deps: { name: string; condition: string }[] | undefined): string {
+  if (!deps) return "";
+  return deps.map(d => `${d.name} (${d.condition})`).join(", ");
 }
 
 async function refreshAll() {
@@ -360,5 +413,11 @@ onMounted(refreshAll);
 .result-error {
   color: var(--n-error-color);
   font-size: 0.75rem;
+}
+
+.dep-icon {
+  color: var(--n-text-color-3);
+  font-size: 0.875rem;
+  cursor: help;
 }
 </style>

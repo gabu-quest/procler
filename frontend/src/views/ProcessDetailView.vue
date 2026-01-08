@@ -61,6 +61,22 @@
                 {{ store.currentProcess.cwd }}
               </n-descriptions-item>
               <n-descriptions-item label="PID">{{ store.currentProcess.pid ?? "-" }}</n-descriptions-item>
+              <n-descriptions-item v-if="store.currentProcess.linux_state" label="State">
+                <n-space size="small">
+                  <n-tag
+                    :type="linuxStateType(store.currentProcess.linux_state.state_code)"
+                    size="small"
+                  >
+                    {{ store.currentProcess.linux_state.state_code }} ({{ store.currentProcess.linux_state.state_name }})
+                  </n-tag>
+                  <span v-if="!store.currentProcess.linux_state.is_killable" class="state-warning">
+                    ⚠️ Cannot be killed
+                  </span>
+                </n-space>
+              </n-descriptions-item>
+              <n-descriptions-item v-if="store.currentProcess.uptime_seconds" label="Uptime">
+                {{ formatUptime(store.currentProcess.uptime_seconds) }}
+              </n-descriptions-item>
               <n-descriptions-item v-if="store.currentProcess.tags" label="Tags">
                 <n-space size="small">
                   <n-tag v-for="tag in store.currentProcess.tags.split(',')" :key="tag" size="small">
@@ -150,6 +166,32 @@ function formatTimestamp(ts: string) {
   } catch {
     return ts;
   }
+}
+
+function linuxStateType(stateCode: string) {
+  switch (stateCode) {
+    case "R":
+      return "success";
+    case "S":
+    case "I":
+      return "info";
+    case "D":
+      return "error";
+    case "Z":
+    case "T":
+    case "t":
+      return "warning";
+    default:
+      return "default";
+  }
+}
+
+function formatUptime(seconds: number) {
+  if (seconds < 60) return `${Math.floor(seconds)}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  return `${hours}h ${mins}m`;
 }
 
 async function fetchLogs() {
@@ -278,5 +320,11 @@ onUnmounted(() => {
 
 .log-stderr {
   color: var(--n-error-color);
+}
+
+.state-warning {
+  color: var(--n-error-color);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 </style>

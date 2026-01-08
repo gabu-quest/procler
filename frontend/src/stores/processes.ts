@@ -1,6 +1,13 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 
+export interface LinuxState {
+  state_code: string;
+  state_name: string;
+  state_description: string;
+  is_killable: boolean;
+}
+
 export interface Process {
   id: number;
   name: string;
@@ -15,6 +22,8 @@ export interface Process {
   created_at: string;
   updated_at: string;
   uptime_seconds?: number;
+  linux_state?: LinuxState;
+  warning?: string;
 }
 
 export interface LogEntry {
