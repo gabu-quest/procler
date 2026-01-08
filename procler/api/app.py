@@ -18,7 +18,7 @@ STATIC_DIR = Path(__file__).parent.parent / "static"
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
-        title="Procgler",
+        title="Procler",
         description="LLM-first process manager for developers",
         version=__version__,
         docs_url="/api/docs",
@@ -40,14 +40,14 @@ def create_app() -> FastAPI:
                 "success": False,
                 "error": "Internal server error",
                 "error_code": "internal_error",
-                "detail": str(exc) if os.environ.get("PROCGLER_DEBUG") else None,
+                "detail": str(exc) if os.environ.get("PROCLER_DEBUG") else None,
             },
         )
 
     # Configure CORS
     # In development, Vite runs on :5173 and proxies /api to backend
     # In production, everything is served from the same origin
-    cors_origins = os.environ.get("PROCGLER_CORS_ORIGINS", "").split(",")
+    cors_origins = os.environ.get("PROCLER_CORS_ORIGINS", "").split(",")
     cors_origins = [o.strip() for o in cors_origins if o.strip()]
 
     # Default development origins
@@ -68,9 +68,12 @@ def create_app() -> FastAPI:
     )
 
     # Include API routers
-    from .routes import logs, processes, snippets, ws
+    from .routes import config, groups, logs, processes, recipes, snippets, ws
 
     app.include_router(processes.router, prefix="/api/processes", tags=["processes"])
+    app.include_router(groups.router, prefix="/api/groups", tags=["groups"])
+    app.include_router(recipes.router, prefix="/api/recipes", tags=["recipes"])
+    app.include_router(config.router, prefix="/api/config", tags=["config"])
     app.include_router(logs.router, prefix="/api/logs", tags=["logs"])
     app.include_router(snippets.router, prefix="/api/snippets", tags=["snippets"])
     app.include_router(ws.router, prefix="/api", tags=["websocket"])
