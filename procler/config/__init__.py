@@ -26,6 +26,9 @@ from .schema import (
     RecipeStepGroupStop,
     RecipeStepWait,
     RecipeStepExec,
+    HealthCheckDef,
+    DependencyCondition,
+    DependencyDef,
 )
 from .changelog import append_changelog, read_changelog, ChangelogAction
 
@@ -53,6 +56,9 @@ __all__ = [
     "RecipeStepGroupStop",
     "RecipeStepWait",
     "RecipeStepExec",
+    "HealthCheckDef",
+    "DependencyCondition",
+    "DependencyDef",
     "append_changelog",
     "read_changelog",
     "ChangelogAction",

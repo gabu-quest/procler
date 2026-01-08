@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from procler import db
-from procler.core import context_local, events, process_manager, snippets, groups, recipes
+from procler.core import context_local, events, process_manager, snippets, groups, recipes, health
 from procler.config import loader as config_loader
 
 
@@ -20,6 +20,7 @@ def reset_state(tmp_path):
     snippets._snippet_manager = None
     groups._group_manager = None
     recipes._recipe_executor = None
+    health.reset_health_checker()
     events.reset_event_bus()
     config_loader.reset_config_cache()
 
@@ -36,6 +37,7 @@ def reset_state(tmp_path):
     snippets._snippet_manager = None
     groups._group_manager = None
     recipes._recipe_executor = None
+    health.reset_health_checker()
     events.reset_event_bus()
     config_loader.reset_config_cache()
 

@@ -20,6 +20,51 @@ class OnErrorAction(str, Enum):
     CONTINUE = "continue"
 
 
+class HealthCheckDef(BaseModel):
+    """Health check definition for a process."""
+    test: str  # Command to run, e.g., "curl -f http://localhost:8000/health"
+    interval: str = "10s"  # Time between checks
+    timeout: str = "5s"  # How long to wait for check to complete
+    retries: int = 3  # Number of consecutive failures before unhealthy
+    start_period: str = "0s"  # Grace period before checks start
+
+    def get_interval_seconds(self) -> float:
+        """Parse interval to seconds."""
+        return self._parse_duration(self.interval)
+
+    def get_timeout_seconds(self) -> float:
+        """Parse timeout to seconds."""
+        return self._parse_duration(self.timeout)
+
+    def get_start_period_seconds(self) -> float:
+        """Parse start_period to seconds."""
+        return self._parse_duration(self.start_period)
+
+    def _parse_duration(self, duration: str) -> float:
+        """Parse duration string to seconds."""
+        d = duration.strip().lower()
+        if d.endswith("ms"):
+            return float(d[:-2]) / 1000
+        elif d.endswith("s"):
+            return float(d[:-1])
+        elif d.endswith("m"):
+            return float(d[:-1]) * 60
+        else:
+            return float(d)
+
+
+class DependencyCondition(str, Enum):
+    """Conditions for process dependencies."""
+    STARTED = "started"  # Just needs to be running
+    HEALTHY = "healthy"  # Must pass health check
+
+
+class DependencyDef(BaseModel):
+    """Dependency definition for a process."""
+    name: str  # Process name
+    condition: DependencyCondition = DependencyCondition.STARTED
+
+
 class ProcessDef(BaseModel):
     """Process definition from config file."""
     command: str
@@ -28,6 +73,18 @@ class ProcessDef(BaseModel):
     cwd: str | None = None
     tags: list[str] = Field(default_factory=list)
     description: str | None = None
+    healthcheck: HealthCheckDef | None = None
+    depends_on: list[str | DependencyDef] = Field(default_factory=list)
+
+    def get_dependencies(self) -> list[DependencyDef]:
+        """Get normalized dependency list."""
+        deps = []
+        for dep in self.depends_on:
+            if isinstance(dep, str):
+                deps.append(DependencyDef(name=dep))
+            else:
+                deps.append(dep)
+        return deps
 
     @field_validator("container")
     @classmethod

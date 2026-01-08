@@ -14,6 +14,13 @@ from .process_manager import ProcessManager, get_process_manager
 from .snippets import SnippetManager, get_snippet_manager
 from .groups import GroupManager, get_group_manager, reset_group_manager
 from .recipes import RecipeExecutor, get_recipe_executor, reset_recipe_executor
+from .health import (
+    HealthChecker,
+    HealthStatus,
+    HealthState,
+    get_health_checker,
+    reset_health_checker,
+)
 
 __all__ = [
     "ExecResult",
@@ -39,4 +46,9 @@ __all__ = [
     "RecipeExecutor",
     "get_recipe_executor",
     "reset_recipe_executor",
+    "HealthChecker",
+    "HealthStatus",
+    "HealthState",
+    "get_health_checker",
+    "reset_health_checker",
 ]

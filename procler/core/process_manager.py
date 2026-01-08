@@ -1,7 +1,9 @@
 """Central process manager coordinating all process operations."""
 
 import asyncio
+import os
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from sqler.query import SQLerField as F
@@ -15,6 +17,79 @@ from .events import EVENT_LOG_ENTRY, EVENT_STATUS_CHANGE, get_event_bus
 
 # Default max log entries per process
 DEFAULT_MAX_LOGS = 10000
+
+# Linux process state descriptions
+LINUX_PROCESS_STATES = {
+    "R": {"name": "running", "description": "Running or runnable (on run queue)"},
+    "S": {"name": "sleeping", "description": "Interruptible sleep (waiting for event)"},
+    "D": {"name": "disk_sleep", "description": "Uninterruptible sleep (usually I/O) - CANNOT BE KILLED"},
+    "Z": {"name": "zombie", "description": "Zombie - terminated but not reaped by parent"},
+    "T": {"name": "stopped", "description": "Stopped by job control signal"},
+    "t": {"name": "tracing_stop", "description": "Stopped by debugger during tracing"},
+    "X": {"name": "dead", "description": "Dead (should never be seen)"},
+    "I": {"name": "idle", "description": "Idle kernel thread"},
+    "W": {"name": "waking", "description": "Waking (Linux 2.6.33 to 3.13 only)"},
+    "P": {"name": "parked", "description": "Parked (Linux 3.9 to 3.13 only)"},
+}
+
+
+def get_linux_process_state(pid: int) -> dict[str, Any] | None:
+    """
+    Read the process state from /proc/[pid]/stat.
+
+    Returns a dict with:
+        - state_code: Single letter (R, S, D, Z, T, etc.)
+        - state_name: Human-readable name
+        - state_description: Full description
+        - is_killable: False if in D state
+
+    Returns None if the process doesn't exist or can't be read.
+    """
+    try:
+        stat_path = Path(f"/proc/{pid}/stat")
+        if not stat_path.exists():
+            return None
+
+        content = stat_path.read_text()
+
+        # Format: pid (comm) state ppid ...
+        # comm can contain spaces and parentheses, so find the last )
+        last_paren = content.rfind(")")
+        if last_paren == -1:
+            return None
+
+        # State is the first character after ") "
+        state_section = content[last_paren + 2:]
+        state_code = state_section.split()[0]
+
+        state_info = LINUX_PROCESS_STATES.get(state_code, {
+            "name": "unknown",
+            "description": f"Unknown state: {state_code}"
+        })
+
+        return {
+            "state_code": state_code,
+            "state_name": state_info["name"],
+            "state_description": state_info["description"],
+            "is_killable": state_code != "D",
+        }
+
+    except (OSError, IOError, IndexError):
+        return None
+
+
+def get_process_children(pid: int) -> list[int]:
+    """Get all child PIDs of a process."""
+    children = []
+    try:
+        children_path = Path(f"/proc/{pid}/task/{pid}/children")
+        if children_path.exists():
+            content = children_path.read_text().strip()
+            if content:
+                children = [int(p) for p in content.split()]
+    except (OSError, IOError, ValueError):
+        pass
+    return children
 
 
 def parse_duration(duration: str) -> int:
@@ -497,7 +572,7 @@ class ProcessManager:
 
     def _process_to_dict(self, process: Process) -> dict[str, Any]:
         """Convert a Process to a dict for JSON output."""
-        return {
+        result = {
             "id": process._id,
             "name": process.name,
             "display_name": process.display_name,
@@ -509,6 +584,21 @@ class ProcessManager:
             "exit_code": process.exit_code,
             "error_message": process.error_message,
         }
+
+        # Add Linux process state if running and we have a PID
+        if process.pid and process.status == ProcessStatus.RUNNING.value:
+            linux_state = get_linux_process_state(process.pid)
+            if linux_state:
+                result["linux_state"] = linux_state
+                # Add warning for problematic states
+                if linux_state["state_code"] == "D":
+                    result["warning"] = "Process in uninterruptible sleep (D state) - may be stuck on I/O"
+                elif linux_state["state_code"] == "Z":
+                    result["warning"] = "Process is a zombie - parent has not reaped it"
+                elif linux_state["state_code"] == "T":
+                    result["warning"] = "Process is stopped (possibly by debugger or signal)"
+
+        return result
 
     async def logs(
         self,
