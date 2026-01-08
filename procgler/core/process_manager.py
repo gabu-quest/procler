@@ -9,6 +9,7 @@ from sqler.query import SQLerField as F
 from ..db import init_database
 from ..models import LogEntry, Process, ProcessStatus
 from .context_base import ExecResult, ExecutionContext, ProcessHandle
+from .context_docker import get_docker_context, is_docker_available
 from .context_local import LocalContext, get_local_context
 
 # Default max log entries per process
@@ -61,7 +62,12 @@ class ProcessManager:
     def _init_contexts(self) -> None:
         """Initialize execution contexts."""
         self._contexts["local"] = get_local_context()
-        # Docker context will be added in Phase 4
+        # Add Docker context if available
+        if is_docker_available():
+            try:
+                self._contexts["docker"] = get_docker_context()
+            except Exception:
+                pass  # Docker not available or not running
 
     def _get_context(self, context_type: str) -> ExecutionContext:
         """Get the execution context for a given type."""
@@ -139,22 +145,56 @@ class ProcessManager:
                 }
 
         # Get the appropriate context
-        context = self._get_context(process.context_type)
+        try:
+            context = self._get_context(process.context_type)
+        except ValueError:
+            if process.context_type == "docker" and not is_docker_available():
+                return {
+                    "success": False,
+                    "error": "Docker is not available",
+                    "error_code": "docker_unavailable",
+                    "suggestion": "Ensure Docker is installed and running",
+                }
+            return {
+                "success": False,
+                "error": f"Unknown context type: {process.context_type}",
+                "error_code": "invalid_context",
+            }
+
+        # Validate Docker context requirements
+        if process.context_type == "docker" and not process.container_name:
+            return {
+                "success": False,
+                "error": "Container name required for docker context",
+                "error_code": "missing_container",
+                "suggestion": "Define process with --container <name>",
+            }
 
         # Update status to starting
         process.status = ProcessStatus.STARTING.value
         process.save()
 
         try:
-            # Start the process
-            handle = await context.start_process(
-                command=process.command,
-                cwd=process.cwd,
-                env=process.env,
-                on_stdout=self._log_callback(process._id, "stdout"),
-                on_stderr=self._log_callback(process._id, "stderr"),
-                on_exit=self._exit_callback(process),
-            )
+            # Start the process (Docker context needs container_name)
+            if process.context_type == "docker":
+                handle = await context.start_process(
+                    command=process.command,
+                    cwd=process.cwd,
+                    env=process.env,
+                    on_stdout=self._log_callback(process._id, "stdout"),
+                    on_stderr=self._log_callback(process._id, "stderr"),
+                    on_exit=self._exit_callback(process),
+                    container_name=process.container_name,
+                )
+            else:
+                handle = await context.start_process(
+                    command=process.command,
+                    cwd=process.cwd,
+                    env=process.env,
+                    on_stdout=self._log_callback(process._id, "stdout"),
+                    on_stderr=self._log_callback(process._id, "stderr"),
+                    on_exit=self._exit_callback(process),
+                )
 
             # Update process state
             process.status = ProcessStatus.RUNNING.value
@@ -506,21 +546,46 @@ class ProcessManager:
         init_database()
 
         if context_type == "docker":
-            return {
-                "success": False,
-                "error": "Docker context not yet implemented",
-                "error_code": "not_implemented",
-                "suggestion": "Use --context local or wait for Phase 4",
-            }
+            if not container_name:
+                return {
+                    "success": False,
+                    "error": "Container name required for docker context",
+                    "error_code": "missing_container",
+                    "suggestion": "Use --container <name> to specify the Docker container",
+                }
 
-        context = self._get_context(context_type)
+            if not is_docker_available():
+                return {
+                    "success": False,
+                    "error": "Docker is not available",
+                    "error_code": "docker_unavailable",
+                    "suggestion": "Ensure Docker is installed and running",
+                }
 
         try:
-            result: ExecResult = await context.exec_command(
-                command=command,
-                cwd=cwd,
-                timeout=timeout,
-            )
+            context = self._get_context(context_type)
+        except ValueError as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "error_code": "invalid_context",
+            }
+
+        try:
+            # Docker context needs container_name parameter
+            if context_type == "docker":
+                result: ExecResult = await context.exec_command(
+                    command=command,
+                    cwd=cwd,
+                    timeout=timeout,
+                    container_name=container_name,
+                )
+            else:
+                result: ExecResult = await context.exec_command(
+                    command=command,
+                    cwd=cwd,
+                    timeout=timeout,
+                )
 
             return {
                 "success": True,
@@ -531,6 +596,14 @@ class ProcessManager:
                 },
             }
 
+        except ValueError as e:
+            # Container not found or similar
+            return {
+                "success": False,
+                "error": str(e),
+                "error_code": "container_not_found",
+                "suggestion": "Run 'docker ps' to list available containers",
+            }
         except Exception as e:
             return {
                 "success": False,

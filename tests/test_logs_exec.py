@@ -173,8 +173,8 @@ def test_exec_command_exit_code():
     assert data["data"]["exit_code"] == 42
 
 
-def test_exec_docker_not_implemented():
-    """Test that docker context returns not implemented error."""
+def test_exec_docker_unavailable():
+    """Test that docker context returns unavailable when Docker is not running."""
     runner = CliRunner()
 
     result = runner.invoke(
@@ -185,7 +185,9 @@ def test_exec_docker_not_implemented():
 
     data = json.loads(result.output)
     assert data["success"] is False
-    assert data["error_code"] == "not_implemented"
+    # When Docker is not available, we get docker_unavailable
+    # When Docker is available but container doesn't exist, we get container_not_found
+    assert data["error_code"] in ["docker_unavailable", "container_not_found"]
 
 
 def test_exec_docker_missing_container():
