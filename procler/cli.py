@@ -552,14 +552,15 @@ def stop(name: str) -> None:
 
 @cli.command()
 @click.argument("name")
-def restart(name: str) -> None:
+@click.option("--clear-logs", is_flag=True, help="Delete old logs before restarting")
+def restart(name: str, clear_logs: bool) -> None:
     """Restart a process (stop then start)."""
     import asyncio
 
     from .core import get_process_manager
 
     manager = get_process_manager()
-    result = asyncio.run(manager.restart(name))
+    result = asyncio.run(manager.restart(name, clear_logs=clear_logs))
 
     output_json(result)
     if not result["success"]:

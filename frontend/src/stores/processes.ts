@@ -101,13 +101,18 @@ export const useProcessStore = defineStore("processes", () => {
     return data;
   }
 
-  async function restartProcess(name: string) {
-    const response = await fetch(`/api/processes/${name}/restart`, { method: "POST" });
+  async function restartProcess(name: string, clearLogs = false) {
+    const url = clearLogs
+      ? `/api/processes/${name}/restart?clear_logs=true`
+      : `/api/processes/${name}/restart`;
+    const response = await fetch(url, { method: "POST" });
     const data = await response.json();
     if (data.success) {
       await fetchProcesses();
       if (currentProcess.value?.name === name) {
         await fetchProcess(name);
+        // Refresh logs after restart
+        await fetchLogs(name, 200);
       }
     }
     return data;

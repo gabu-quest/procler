@@ -10,6 +10,7 @@ from sqler.query import SQLerField as F
 
 from ..db import init_database
 from ..models import LogEntry, Process, ProcessStatus
+from ..config import append_changelog, ChangelogAction
 from .context_base import ExecResult, ExecutionContext, ProcessHandle
 from .context_docker import get_docker_context, is_docker_available
 from .context_local import LocalContext, get_local_context
@@ -318,6 +319,14 @@ class ProcessManager:
                 },
             )
 
+            # Log to changelog
+            append_changelog(
+                action=ChangelogAction.START,
+                entity_type="process",
+                entity_name=name,
+                details={"pid": process.pid, "context": process.context_type},
+            )
+
             return {
                 "success": True,
                 "data": {
@@ -405,6 +414,14 @@ class ProcessManager:
                 },
             )
 
+            # Log to changelog
+            append_changelog(
+                action=ChangelogAction.STOP,
+                entity_type="process",
+                entity_name=name,
+                details={"exit_code": exit_code},
+            )
+
             return {
                 "success": True,
                 "data": {
@@ -436,9 +453,19 @@ class ProcessManager:
                 "error_code": "stop_failed",
             }
 
-    async def restart(self, name: str, timeout: float = 10.0) -> dict[str, Any]:
+    async def restart(
+        self,
+        name: str,
+        timeout: float = 10.0,
+        clear_logs: bool = False,
+    ) -> dict[str, Any]:
         """
         Restart a process by name (stop then start).
+
+        Args:
+            name: Process name
+            timeout: Seconds to wait for stop
+            clear_logs: If True, delete old logs before starting
 
         Returns a dict with status and process info (for JSON output).
         """
@@ -457,6 +484,10 @@ class ProcessManager:
             stop_result = await self.stop(name, timeout=timeout)
             if not stop_result["success"]:
                 return stop_result
+
+        # Clear old logs if requested
+        if clear_logs and process._id:
+            LogEntry.delete().where(F("process_id") == process._id).execute()
 
         # Start
         return await self.start(name)

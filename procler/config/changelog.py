@@ -17,6 +17,8 @@ class ChangelogAction(str, Enum):
     UPDATE = "UPDATE"
     DELETE = "DELETE"
     EXECUTE = "EXECUTE"  # For recipe executions
+    START = "START"  # Process started
+    STOP = "STOP"  # Process stopped
 
 
 def append_changelog(
@@ -32,14 +34,18 @@ def append_changelog(
     Format: [ISO8601] ACTION type:name {json_details}
 
     Args:
-        action: The action performed (CREATE, UPDATE, DELETE, EXECUTE)
+        action: The action performed (CREATE, UPDATE, DELETE, EXECUTE, START, STOP)
         entity_type: Type of entity (process, group, recipe, snippet)
         entity_name: Name of the entity
         details: Optional dict of additional details
         changelog_path: Override path for testing
     """
-    if changelog_path is None:
-        changelog_path = get_changelog_path()
+    try:
+        if changelog_path is None:
+            changelog_path = get_changelog_path()
+    except (ValueError, FileNotFoundError):
+        # No config directory found - skip logging silently
+        return
 
     # Ensure directory exists
     changelog_path.parent.mkdir(parents=True, exist_ok=True)

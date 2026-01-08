@@ -171,10 +171,11 @@ async def stop_process(
 @router.post("/{name}/restart")
 async def restart_process(
     name: str,
+    clear_logs: bool = False,
     manager: ProcessManager = Depends(get_manager),
 ) -> ProcessResponse:
-    """Restart a process."""
-    result = await manager.restart(name)
+    """Restart a process. Use ?clear_logs=true to delete old logs."""
+    result = await manager.restart(name, clear_logs=clear_logs)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result)
     return ProcessResponse(**result)
