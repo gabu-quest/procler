@@ -515,5 +515,104 @@ def exec_cmd(
         sys.exit(1)
 
 
+# Snippet subcommands
+@cli.group()
+def snippet() -> None:
+    """Manage command snippets."""
+    pass
+
+
+@snippet.command("list")
+@click.option("--tag", help="Filter by tag")
+def snippet_list(tag: str | None) -> None:
+    """List all snippets."""
+    from .core import get_snippet_manager
+
+    manager = get_snippet_manager()
+    result = manager.list_snippets(tag=tag)
+
+    output_json(result)
+
+
+@snippet.command("save")
+@click.option("--name", required=True, help="Snippet name")
+@click.option("--command", "cmd", required=True, help="Command to save")
+@click.option("--description", help="Description of what the snippet does")
+@click.option(
+    "--context",
+    type=click.Choice(["local", "docker"]),
+    default="local",
+    help="Execution context",
+)
+@click.option("--container", help="Docker container name (required if context=docker)")
+@click.option("--tags", help="Comma-separated tags")
+def snippet_save(
+    name: str,
+    cmd: str,
+    description: str | None,
+    context: str,
+    container: str | None,
+    tags: str | None,
+) -> None:
+    """Save a new snippet."""
+    from .core import get_snippet_manager
+
+    if context == "docker" and not container:
+        output_json(
+            error_response(
+                "Container name required for docker context",
+                error_code="missing_container",
+                suggestion="Use --container <name> to specify the Docker container",
+            )
+        )
+        sys.exit(1)
+
+    tag_list = [t.strip() for t in tags.split(",")] if tags else None
+
+    manager = get_snippet_manager()
+    result = manager.save_snippet(
+        name=name,
+        command=cmd,
+        description=description,
+        context_type=context,
+        container_name=container,
+        tags=tag_list,
+    )
+
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
+
+
+@snippet.command("run")
+@click.argument("name")
+def snippet_run(name: str) -> None:
+    """Run a saved snippet."""
+    import asyncio
+
+    from .core import get_snippet_manager
+
+    manager = get_snippet_manager()
+    result = asyncio.run(manager.run_snippet(name))
+
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
+
+
+@snippet.command("remove")
+@click.argument("name")
+def snippet_remove(name: str) -> None:
+    """Remove a snippet."""
+    from .core import get_snippet_manager
+
+    manager = get_snippet_manager()
+    result = manager.remove_snippet(name)
+
+    output_json(result)
+    if not result["success"]:
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     cli()

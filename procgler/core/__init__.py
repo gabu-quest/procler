@@ -4,6 +4,7 @@ from .context_base import ExecResult, ExecutionContext, ProcessHandle
 from .context_docker import DockerContext, get_docker_context, is_docker_available
 from .context_local import LocalContext, get_local_context
 from .process_manager import ProcessManager, get_process_manager
+from .snippets import SnippetManager, get_snippet_manager
 
 __all__ = [
     "ExecResult",
@@ -16,4 +17,6 @@ __all__ = [
     "get_local_context",
     "ProcessManager",
     "get_process_manager",
+    "SnippetManager",
+    "get_snippet_manager",
 ]

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from procgler import db
-from procgler.core import context_local, process_manager
+from procgler.core import context_local, process_manager, snippets
 
 
 @pytest.fixture(autouse=True)
@@ -16,6 +16,7 @@ def reset_state(tmp_path):
     db.reset_database()
     process_manager._manager = None
     context_local._local_context = None
+    snippets._snippet_manager = None
 
     # Use a temporary database for this test
     db_path = tmp_path / "test.db"
@@ -27,6 +28,7 @@ def reset_state(tmp_path):
     db.reset_database()
     process_manager._manager = None
     context_local._local_context = None
+    snippets._snippet_manager = None
 
 
 @pytest.fixture
