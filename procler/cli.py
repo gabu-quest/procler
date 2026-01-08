@@ -44,7 +44,7 @@ def error_response(
 # CLI schema for capabilities command
 
 CLI_SCHEMA = {
-    "name": "procgler",
+    "name": "procler",
     "version": __version__,
     "description": "LLM-first process manager for developers",
     "commands": {
@@ -239,7 +239,7 @@ def _process_to_dict(process) -> dict[str, Any]:
 
 
 @click.group()
-@click.version_option(version=__version__, prog_name="procgler")
+@click.version_option(version=__version__, prog_name="procler")
 def cli() -> None:
     """Procgler - LLM-first process manager for developers.
 
@@ -342,7 +342,7 @@ def define(
             error_response(
                 f"Process '{name}' already exists",
                 error_code="process_exists",
-                suggestion=f"Use 'procgler remove {name}' first, or choose a different name",
+                suggestion=f"Use 'procler remove {name}' first, or choose a different name",
             )
         )
         sys.exit(1)
@@ -391,7 +391,7 @@ def remove(name: str) -> None:
             error_response(
                 f"Process '{name}' not found",
                 error_code="process_not_found",
-                suggestion="Run 'procgler list' to see available processes",
+                suggestion="Run 'procler list' to see available processes",
             )
         )
         sys.exit(1)
@@ -628,7 +628,7 @@ def serve(host: str, port: int, reload: bool) -> None:
     init_database()
 
     uvicorn.run(
-        "procgler.api:app",
+        "procler.api:app",
         host=host,
         port=port,
         reload=reload,

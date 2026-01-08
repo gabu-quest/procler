@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
-from procgler.cli import cli
-from procgler.core.context_docker import DOCKER_AVAILABLE
+from procler.cli import cli
+from procler.core.context_docker import DOCKER_AVAILABLE
 
 
 def test_docker_define_with_container():
@@ -70,8 +70,8 @@ def test_docker_start_without_container_name():
 
     # Now manually modify it to be docker context without container
     # This simulates a corrupted database state
-    from procgler.db import init_database
-    from procgler.models import Process
+    from procler.db import init_database
+    from procler.models import Process
 
     init_database()
     process = Process.query().filter(F("name") == "local-proc").all()[0]
@@ -108,7 +108,7 @@ def test_docker_exec_missing_container():
 
 def test_is_docker_available():
     """Test the is_docker_available function."""
-    from procgler.core import is_docker_available
+    from procler.core import is_docker_available
 
     # Function should return a boolean
     result = is_docker_available()
@@ -119,21 +119,21 @@ def test_is_docker_available():
 class TestDockerContextMocked:
     """Tests for DockerContext with mocked Docker client."""
 
-    @patch("procgler.core.context_docker.DOCKER_AVAILABLE", True)
-    @patch("procgler.core.context_docker.docker")
+    @patch("procler.core.context_docker.DOCKER_AVAILABLE", True)
+    @patch("procler.core.context_docker.docker")
     def test_docker_context_initialization(self, mock_docker):
         """Test DockerContext can be initialized when Docker is available."""
         mock_client = MagicMock()
         mock_docker.from_env.return_value = mock_client
 
-        from procgler.core.context_docker import DockerContext
+        from procler.core.context_docker import DockerContext
 
         context = DockerContext()
         assert context.context_type == "docker"
         mock_docker.from_env.assert_called_once()
 
-    @patch("procgler.core.context_docker.DOCKER_AVAILABLE", True)
-    @patch("procgler.core.context_docker.docker")
+    @patch("procler.core.context_docker.DOCKER_AVAILABLE", True)
+    @patch("procler.core.context_docker.docker")
     def test_list_containers(self, mock_docker):
         """Test listing available containers."""
         mock_client = MagicMock()
@@ -146,7 +146,7 @@ class TestDockerContextMocked:
         mock_client.containers.list.return_value = [mock_container]
         mock_docker.from_env.return_value = mock_client
 
-        from procgler.core.context_docker import DockerContext
+        from procler.core.context_docker import DockerContext
 
         context = DockerContext()
         containers = context.list_containers()
@@ -156,8 +156,8 @@ class TestDockerContextMocked:
         assert containers[0]["status"] == "running"
         assert containers[0]["image"] == "python:3.12"
 
-    @patch("procgler.core.context_docker.DOCKER_AVAILABLE", True)
-    @patch("procgler.core.context_docker.docker")
+    @patch("procler.core.context_docker.DOCKER_AVAILABLE", True)
+    @patch("procler.core.context_docker.docker")
     async def test_exec_command_success(self, mock_docker):
         """Test executing a command in a container."""
         mock_client = MagicMock()
@@ -168,7 +168,7 @@ class TestDockerContextMocked:
         mock_client.containers.get.return_value = mock_container
         mock_docker.from_env.return_value = mock_client
 
-        from procgler.core.context_docker import DockerContext
+        from procler.core.context_docker import DockerContext
 
         context = DockerContext()
         result = await context.exec_command(
@@ -180,8 +180,8 @@ class TestDockerContextMocked:
         assert "hello" in result.stdout
         mock_container.exec_run.assert_called_once()
 
-    @patch("procgler.core.context_docker.DOCKER_AVAILABLE", True)
-    @patch("procgler.core.context_docker.docker")
+    @patch("procler.core.context_docker.DOCKER_AVAILABLE", True)
+    @patch("procler.core.context_docker.docker")
     async def test_exec_command_container_not_running(self, mock_docker):
         """Test executing a command in a stopped container."""
         mock_client = MagicMock()
@@ -191,7 +191,7 @@ class TestDockerContextMocked:
         mock_client.containers.get.return_value = mock_container
         mock_docker.from_env.return_value = mock_client
 
-        from procgler.core.context_docker import DockerContext
+        from procler.core.context_docker import DockerContext
 
         context = DockerContext()
         result = await context.exec_command(
@@ -202,17 +202,17 @@ class TestDockerContextMocked:
         assert result.exit_code == -1
         assert "not running" in result.stderr
 
-    @patch("procgler.core.context_docker.DOCKER_AVAILABLE", True)
-    @patch("procgler.core.context_docker.docker")
+    @patch("procler.core.context_docker.DOCKER_AVAILABLE", True)
+    @patch("procler.core.context_docker.docker")
     async def test_exec_command_container_not_found(self, mock_docker):
         """Test executing a command when container doesn't exist."""
-        from procgler.core.context_docker import NotFound
+        from procler.core.context_docker import NotFound
 
         mock_client = MagicMock()
         mock_client.containers.get.side_effect = NotFound("Container not found")
         mock_docker.from_env.return_value = mock_client
 
-        from procgler.core.context_docker import DockerContext
+        from procler.core.context_docker import DockerContext
 
         context = DockerContext()
 

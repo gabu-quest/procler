@@ -13,11 +13,11 @@ Procgler provides a unified interface for managing development processes across 
 ## Project Structure
 
 ```
-procgler/
+procler/
 ├── pyproject.toml              # Project config & dependencies
-├── procgler/
+├── procler/
 │   ├── __init__.py
-│   ├── __main__.py             # python -m procgler entrypoint
+│   ├── __main__.py             # python -m procler entrypoint
 │   ├── cli.py                  # Click CLI definitions
 │   ├── config.py               # Settings, paths, defaults
 │   ├── db.py                   # sqler setup and migrations
@@ -79,41 +79,41 @@ All commands output JSON. Exit code 0 on success, non-zero on failure.
 ### Process Management
 ```bash
 # Define a process
-procgler define --name <NAME> --command <CMD> [--context local|docker] [--container <CONTAINER>] [--cwd <PATH>] [--tags <TAG1,TAG2>]
+procler define --name <NAME> --command <CMD> [--context local|docker] [--container <CONTAINER>] [--cwd <PATH>] [--tags <TAG1,TAG2>]
 
 # Control processes
-procgler start <NAME>      # Start (idempotent - no-op if running)
-procgler stop <NAME>       # Stop (idempotent - no-op if stopped)
-procgler restart <NAME>    # Stop then start
+procler start <NAME>      # Start (idempotent - no-op if running)
+procler stop <NAME>       # Stop (idempotent - no-op if stopped)
+procler restart <NAME>    # Stop then start
 
 # View processes
-procgler status [NAME]     # All processes or specific one
-procgler list              # List all definitions
+procler status [NAME]     # All processes or specific one
+procler list              # List all definitions
 
 # Remove a process
-procgler remove <NAME>
+procler remove <NAME>
 ```
 
 ### Logs & Execution
 ```bash
 # Get logs
-procgler logs <NAME> --tail 100 --since 5m
+procler logs <NAME> --tail 100 --since 5m
 
 # Execute arbitrary command
-procgler exec "ls -la" --cwd /tmp [--context docker --container <CONTAINER>]
+procler exec "ls -la" --cwd /tmp [--context docker --container <CONTAINER>]
 ```
 
 ### Snippets (Reusable Commands)
 ```bash
-procgler snippet list [--tag TAG]
-procgler snippet save --name <NAME> --command <CMD> [--description <DESC>] [--tags <TAGS>]
-procgler snippet run <NAME>
-procgler snippet remove <NAME>
+procler snippet list [--tag TAG]
+procler snippet save --name <NAME> --command <CMD> [--description <DESC>] [--tags <TAGS>]
+procler snippet run <NAME>
+procler snippet remove <NAME>
 ```
 
 ### Server
 ```bash
-procgler serve [--host 127.0.0.1] [--port 8000] [--reload]
+procler serve [--host 127.0.0.1] [--port 8000] [--reload]
 ```
 
 ---
@@ -187,13 +187,13 @@ Connect to `ws://localhost:8000/api/ws`
 uv sync --all-extras
 
 # Run CLI
-uv run python -m procgler --help
+uv run python -m procler --help
 
 # Run tests (91 tests)
 uv run pytest tests/ -v
 
 # Run dev server
-uv run python -m procgler serve --reload
+uv run python -m procler serve --reload
 
 # Frontend development
 cd frontend && npm install && npm run dev
@@ -239,7 +239,7 @@ npm run build    # Production build to dist/
 ./scripts/build_frontend.sh
 
 # Start production server (serves both API and frontend)
-procgler serve --host 0.0.0.0 --port 8000
+procler serve --host 0.0.0.0 --port 8000
 ```
 
 Environment variables:
@@ -278,4 +278,4 @@ Environment variables:
 
 ## Roadmap Reference
 
-See `procgler-roadmap.md` for the full implementation plan with phases and acceptance criteria.
+See `procler-roadmap.md` for the full implementation plan with phases and acceptance criteria.

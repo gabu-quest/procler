@@ -16,14 +16,14 @@ Procgler gives developers (and their AI coding assistants) a single pane of glas
 ## Installation
 
 ```bash
-pip install procgler
+pip install procler
 ```
 
 Or install from source:
 
 ```bash
-git clone https://github.com/yourusername/procgler.git
-cd procgler
+git clone https://github.com/yourusername/procler.git
+cd procler
 uv sync --all-extras
 ```
 
@@ -33,62 +33,62 @@ uv sync --all-extras
 
 ```bash
 # Define a process
-procgler define --name my-api --command "uvicorn main:app --port 8000"
+procler define --name my-api --command "uvicorn main:app --port 8000"
 
 # Start it
-procgler start my-api
+procler start my-api
 
 # Check status (JSON output)
-procgler status my-api
+procler status my-api
 
 # View logs
-procgler logs my-api --tail 50 --since 5m
+procler logs my-api --tail 50 --since 5m
 
 # Stop it
-procgler stop my-api
+procler stop my-api
 
 # Restart
-procgler restart my-api
+procler restart my-api
 ```
 
 ### Docker Processes
 
 ```bash
 # Define a process that runs in a Docker container
-procgler define \
+procler define \
   --name db-migrate \
   --command "alembic upgrade head" \
   --context docker \
   --container api-container
 
 # Execute arbitrary command in container
-procgler exec "pip list" --context docker --container api-container
+procler exec "pip list" --context docker --container api-container
 ```
 
 ### Snippets (Reusable Commands)
 
 ```bash
 # Save a snippet
-procgler snippet save \
+procler snippet save \
   --name rebuild-api \
   --command "docker compose build api" \
   --tags docker,build
 
 # List snippets (with optional tag filter)
-procgler snippet list --tag docker
+procler snippet list --tag docker
 
 # Run a snippet
-procgler snippet run rebuild-api
+procler snippet run rebuild-api
 ```
 
 ### Web Server
 
 ```bash
 # Start the API server
-procgler serve --host 0.0.0.0 --port 8000
+procler serve --host 0.0.0.0 --port 8000
 
 # With hot reload for development
-procgler serve --reload
+procler serve --reload
 ```
 
 ## CLI Output
@@ -180,10 +180,10 @@ uv sync --all-extras
 uv run pytest tests/ -v
 
 # Run CLI in development
-uv run python -m procgler --help
+uv run python -m procler --help
 
 # Run dev server with hot reload
-uv run python -m procgler serve --reload
+uv run python -m procler serve --reload
 
 # Frontend development
 cd frontend && npm install && npm run dev
@@ -201,7 +201,7 @@ The Vue 3 frontend provides a visual interface for managing processes and snippe
 
 ```bash
 # Terminal 1: Start the backend
-uv run python -m procgler serve --reload
+uv run python -m procler serve --reload
 
 # Terminal 2: Start the frontend dev server
 cd frontend && npm run dev
@@ -217,10 +217,10 @@ Procgler is designed for seamless AI assistant integration:
 Human: "My auth-api seems slow, check its recent logs and restart it if there are errors"
 
 Claude Code:
-1. procgler logs auth-api --tail 100
+1. procler logs auth-api --tail 100
 2. [Analyzes JSON log output]
-3. procgler restart auth-api
-4. procgler status auth-api
+3. procler restart auth-api
+4. procler status auth-api
 5. Reports back to human
 ```
 

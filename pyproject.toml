@@ -1,5 +1,5 @@
 [project]
-name = "procgler"
+name = "procler"
 version = "0.1.0"
 description = "LLM-first process manager for developers"
 readme = "README.md"
@@ -51,7 +51,7 @@ Issues = "https://github.com/gabu-quest/procler/issues"
 Changelog = "https://github.com/gabu-quest/procler/blob/main/CHANGELOG.md"
 
 [project.scripts]
-procgler = "procgler.cli:cli"
+procler = "procler.cli:cli"
 
 [project.optional-dependencies]
 dev = [
@@ -78,7 +78,7 @@ exclude = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["procgler"]
+packages = ["procler"]
 
 [tool.ruff]
 line-length = 100

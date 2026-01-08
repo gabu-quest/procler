@@ -499,7 +499,7 @@ wheels = [
 ]
 
 [[package]]
-name = "procgler"
+name = "procler"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

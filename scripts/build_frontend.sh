@@ -6,7 +6,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 FRONTEND_DIR="$PROJECT_ROOT/frontend"
-STATIC_DIR="$PROJECT_ROOT/procgler/static"
+STATIC_DIR="$PROJECT_ROOT/procler/static"
 
 echo "Building frontend..."
 cd "$FRONTEND_DIR"

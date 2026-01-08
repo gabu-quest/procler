@@ -4,8 +4,8 @@ import os
 from pathlib import Path
 
 # Default paths
-DEFAULT_DATA_DIR = Path(os.environ.get("PROCGLER_DATA_DIR", Path.home() / ".procgler"))
-DEFAULT_DB_PATH = DEFAULT_DATA_DIR / "procgler.db"
+DEFAULT_DATA_DIR = Path(os.environ.get("PROCGLER_DATA_DIR", Path.home() / ".procler"))
+DEFAULT_DB_PATH = DEFAULT_DATA_DIR / "procler.db"
 
 # Server defaults
 DEFAULT_HOST = "127.0.0.1"
@@ -26,4 +26,4 @@ def get_data_dir() -> Path:
 
 def get_db_path() -> Path:
     """Get the database file path."""
-    return Path(os.environ.get("PROCGLER_DB_PATH", get_data_dir() / "procgler.db"))
+    return Path(os.environ.get("PROCGLER_DB_PATH", get_data_dir() / "procler.db"))

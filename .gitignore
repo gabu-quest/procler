@@ -46,9 +46,9 @@ htmlcov/
 .ruff_cache/
 
 # Local data
-.procgler/
+.procler/
 
 # Frontend build
-procgler/static/
+procler/static/
 frontend/node_modules/
 frontend/dist/

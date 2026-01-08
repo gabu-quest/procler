@@ -1,4 +1,4 @@
-"""Entry point for python -m procgler."""
+"""Entry point for python -m procler."""
 
 from .cli import cli
 

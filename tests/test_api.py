@@ -3,7 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from procgler.api import create_app
+from procler.api import create_app
 
 
 @pytest.fixture

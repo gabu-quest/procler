@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from procgler import db
-from procgler.core import context_local, events, process_manager, snippets
+from procler import db
+from procler.core import context_local, events, process_manager, snippets
 
 
 @pytest.fixture(autouse=True)

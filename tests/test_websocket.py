@@ -3,9 +3,9 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from procgler.api import create_app
-from procgler.api.routes.ws import ConnectionManager, get_connection_manager
-from procgler.core.events import EVENT_LOG_ENTRY, EVENT_STATUS_CHANGE, get_event_bus
+from procler.api import create_app
+from procler.api.routes.ws import ConnectionManager, get_connection_manager
+from procler.core.events import EVENT_LOG_ENTRY, EVENT_STATUS_CHANGE, get_event_bus
 
 
 @pytest.fixture

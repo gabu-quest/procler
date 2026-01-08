@@ -100,7 +100,7 @@ class SnippetManager:
                 "success": False,
                 "error": f"Snippet '{name}' already exists",
                 "error_code": "snippet_exists",
-                "suggestion": f"Use 'procgler snippet remove {name}' first, or choose a different name",
+                "suggestion": f"Use 'procler snippet remove {name}' first, or choose a different name",
             }
 
         snippet = Snippet(
@@ -136,7 +136,7 @@ class SnippetManager:
                 "success": False,
                 "error": f"Snippet '{name}' not found",
                 "error_code": "snippet_not_found",
-                "suggestion": "Run 'procgler snippet list' to see available snippets",
+                "suggestion": "Run 'procler snippet list' to see available snippets",
             }
 
         snippet.delete()
@@ -163,7 +163,7 @@ class SnippetManager:
                 "success": False,
                 "error": f"Snippet '{name}' not found",
                 "error_code": "snippet_not_found",
-                "suggestion": "Run 'procgler snippet list' to see available snippets",
+                "suggestion": "Run 'procler snippet list' to see available snippets",
             }
 
         # Validate docker context

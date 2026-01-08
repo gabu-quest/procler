@@ -4,7 +4,7 @@ import json
 
 from click.testing import CliRunner
 
-from procgler.cli import cli
+from procler.cli import cli
 
 
 def test_version():
@@ -12,7 +12,7 @@ def test_version():
     runner = CliRunner()
     result = runner.invoke(cli, ["--version"])
     assert result.exit_code == 0
-    assert "procgler" in result.output
+    assert "procler" in result.output
     assert "0.1.0" in result.output
 
 
@@ -25,7 +25,7 @@ def test_capabilities():
     data = json.loads(result.output)
     assert data["success"] is True
     assert "data" in data
-    assert data["data"]["name"] == "procgler"
+    assert data["data"]["name"] == "procler"
     assert "commands" in data["data"]
     assert "status" in data["data"]["commands"]
     assert "start" in data["data"]["commands"]

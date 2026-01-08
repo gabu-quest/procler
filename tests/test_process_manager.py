@@ -4,7 +4,7 @@ import json
 
 from click.testing import CliRunner
 
-from procgler.cli import cli
+from procler.cli import cli
 
 
 def test_define_process():

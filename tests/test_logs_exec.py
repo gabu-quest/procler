@@ -6,9 +6,9 @@ import time
 
 from click.testing import CliRunner
 
-from procgler.cli import cli
-from procgler.core import get_process_manager
-from procgler.models import LogEntry
+from procler.cli import cli
+from procler.core import get_process_manager
+from procler.models import LogEntry
 
 
 def test_logs_empty():
@@ -34,8 +34,8 @@ def test_logs_empty():
 
 async def test_logs_with_output():
     """Test getting logs for a process that has generated output."""
-    from procgler.db import init_database
-    from procgler.models import Process
+    from procler.db import init_database
+    from procler.models import Process
     from datetime import datetime
 
     init_database()
@@ -71,8 +71,8 @@ async def test_logs_with_output():
 
 async def test_logs_with_tail():
     """Test getting logs with --tail option."""
-    from procgler.db import init_database
-    from procgler.models import Process
+    from procler.db import init_database
+    from procler.models import Process
     from datetime import datetime
 
     init_database()
@@ -207,8 +207,8 @@ def test_exec_docker_missing_container():
 
 async def test_log_rotation():
     """Test log rotation functionality."""
-    from procgler.db import init_database
-    from procgler.models import Process
+    from procler.db import init_database
+    from procler.models import Process
     from datetime import datetime
 
     init_database()
@@ -249,8 +249,8 @@ async def test_log_rotation():
 
 async def test_cleanup_all_logs():
     """Test cleanup_all_logs functionality."""
-    from procgler.db import init_database
-    from procgler.models import Process
+    from procler.db import init_database
+    from procler.models import Process
     from datetime import datetime
 
     init_database()

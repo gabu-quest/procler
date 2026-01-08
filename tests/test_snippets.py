@@ -4,8 +4,8 @@ import json
 
 from click.testing import CliRunner
 
-from procgler.cli import cli
-from procgler.core import get_snippet_manager
+from procler.cli import cli
+from procler.core import get_snippet_manager
 
 
 def test_snippet_list_empty():

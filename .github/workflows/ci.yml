@@ -28,7 +28,7 @@ jobs:
         run: uv sync --all-extras
 
       - name: Run linting
-        run: uv run ruff check procgler/
+        run: uv run ruff check procler/
 
       - name: Run tests
         run: uv run pytest tests/ -v
