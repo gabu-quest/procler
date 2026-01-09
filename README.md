@@ -22,10 +22,12 @@ pip install procler
 Or install from source:
 
 ```bash
-git clone https://github.com/yourusername/procler.git
+git clone https://github.com/gabu-quest/procler.git
 cd procler
-uv sync --all-extras
+uv pip install -e .[dev]
 ```
+
+> **Note:** Frontend is pre-built and included. No separate build step needed!
 
 ## Quick Start
 
@@ -174,40 +176,41 @@ ws.send(JSON.stringify({action: "subscribe_status"}));
 
 ```bash
 # Install dev dependencies
-uv sync --all-extras
+uv pip install -e .[dev]
 
-# Run tests (91 tests)
-uv run pytest tests/ -v
+# Run tests (154 tests)
+uv run pytest -v
 
 # Run CLI in development
-uv run python -m procler --help
+uv run procler --help
 
-# Run dev server with hot reload
-uv run python -m procler serve --reload
+# Run server with hot reload
+uv run procler serve --reload
 
-# Frontend development
-cd frontend && npm install && npm run dev
+# Rebuild frontend (only if modifying Vue code)
+bash scripts/build_frontend.sh
 ```
 
 ## Web Dashboard
 
 The Vue 3 frontend provides a visual interface for managing processes and snippets:
 
-- **Process List** - View all defined processes with status, start/stop/restart controls
+- **Dashboard** - Overview of all processes with real-time status
+- **Process List** - View all defined processes with start/stop/restart controls
 - **Process Detail** - Live log streaming via WebSocket, process info
 - **Snippets** - Save, manage, and run reusable commands
+- **Groups & Recipes** - Manage process groups and multi-step operations
 
 ### Running the Dashboard
 
 ```bash
-# Terminal 1: Start the backend
-uv run python -m procler serve --reload
-
-# Terminal 2: Start the frontend dev server
-cd frontend && npm run dev
+# Start the server (serves both API and web UI)
+uv run procler serve --port 8000
 ```
 
-Open http://localhost:5173 to access the dashboard.
+Open http://localhost:8000 to access the dashboard.
+
+> **Frontend Development:** For Vue development, run `cd frontend && npm run dev` (dev server on port 5173) and rebuild with `bash scripts/build_frontend.sh`
 
 ## Claude Code Integration
 
