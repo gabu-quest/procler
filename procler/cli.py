@@ -79,6 +79,12 @@ CLI_SCHEMA = {
             "arguments": [],
             "options": [],
         },
+        "help-llm": {
+            "description": "Output comprehensive LLM-focused usage instructions in markdown format",
+            "example": "procler help-llm",
+            "arguments": [],
+            "options": [],
+        },
         "status": {
             "description": "Show status of all processes or a specific one",
             "example": "procler status api",
@@ -370,6 +376,191 @@ def cli() -> None:
 def capabilities() -> None:
     """Returns JSON schema of all commands."""
     output_json(success_response(CLI_SCHEMA))
+
+
+@cli.command("help-llm")
+def help_llm() -> None:
+    """Output comprehensive LLM-focused usage instructions."""
+    instructions = """# Procler - LLM-First Process Manager
+
+## Overview
+Procler is a process manager designed for LLM integration. All CLI commands return structured JSON with a consistent response format:
+- `success`: boolean indicating operation result
+- `data`: payload on success
+- `error`: error message on failure
+- `error_code`: machine-readable error identifier
+- `suggestion`: actionable fix for errors
+
+## Quick Start
+
+### 1. Discover Commands
+```bash
+procler capabilities  # JSON schema of all commands
+procler --help        # Human-readable help
+```
+
+### 2. Initialize Config
+```bash
+procler config init      # Creates .procler/ directory
+procler config validate  # Validates config.yaml
+procler config explain   # Plain-language explanation
+```
+
+### 3. Process Management
+```bash
+procler define --name api --command 'uvicorn main:app' --cwd /app
+procler start api        # Idempotent - safe to retry
+procler stop api         # Idempotent - safe to retry
+procler restart api      # Stop then start
+procler restart api --clear-logs  # Clear logs on restart
+procler status api       # Get process status with Linux state
+procler logs api --tail 50
+```
+
+### 4. Groups (Ordered Start/Stop)
+```bash
+procler group list
+procler group start backend   # Starts in order, waits for dependencies
+procler group stop backend    # Stops in reverse order
+procler group status backend
+```
+
+### 5. Recipes (Multi-Step Operations)
+```bash
+procler recipe list
+procler recipe show deploy
+procler recipe run deploy --dry-run    # Preview
+procler recipe run deploy              # Execute
+```
+
+### 6. Snippets (Reusable Commands)
+```bash
+procler snippet list
+procler snippet save --name rebuild --command 'docker compose build'
+procler snippet run rebuild
+```
+
+## Response Format
+
+### Success Response
+```json
+{
+  "success": true,
+  "data": { ... }
+}
+```
+
+### Error Response
+```json
+{
+  "success": false,
+  "error": "Process 'api' not found",
+  "error_code": "process_not_found",
+  "suggestion": "Run 'procler list' to see available processes"
+}
+```
+
+## Process Status Fields
+- `status`: "running" | "stopped" | "failed"
+- `pid`: Process ID (null if stopped)
+- `uptime_seconds`: Time since start
+- `linux_state`: Linux kernel state (R, S, D, Z, T)
+  - D state = "uninterruptible sleep" - process cannot be killed
+  - Z state = "zombie" - terminated but not reaped
+- `warning`: Alert for problematic states
+
+## Config File (.procler/config.yaml)
+
+```yaml
+version: 1
+
+processes:
+  api:
+    command: uvicorn main:app --reload
+    context: local  # or docker
+    container: my-container  # if docker
+    cwd: /path/to/project
+    tags: [backend, api]
+    healthcheck:
+      test: "curl -f http://localhost:8000/health"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - redis           # Wait for started
+      - name: database
+        condition: healthy  # Wait for health check
+
+groups:
+  backend:
+    processes: [redis, database, api]
+    stop_order: [api, database, redis]  # Optional
+
+recipes:
+  deploy:
+    on_error: stop  # or continue
+    steps:
+      - stop: api
+      - exec: "alembic upgrade head"
+      - start: api
+
+snippets:
+  rebuild:
+    command: docker compose build
+    tags: [docker]
+```
+
+## Common Workflows
+
+### Start Development Environment
+```bash
+procler group start backend && procler status
+```
+
+### Debug Failing Process
+```bash
+procler status api
+procler logs api --tail 100
+procler restart api --clear-logs
+```
+
+### Graceful Deployment
+```bash
+procler recipe run deploy --dry-run
+procler recipe run deploy
+```
+
+## Web Server
+
+```bash
+procler serve --port 8000 --reload  # Development
+procler serve --host 0.0.0.0        # Production
+```
+
+REST API: http://localhost:8000/api
+WebSocket: ws://localhost:8000/api/ws
+OpenAPI: http://localhost:8000/api/docs
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| PROCLER_LOG_LEVEL | INFO | Log level (DEBUG, INFO, WARNING, ERROR) |
+| PROCLER_LOG_FILE | - | Log file path (auto-rotates) |
+| PROCLER_CONFIG_DIR | .procler/ | Config directory |
+| PROCLER_DEBUG | - | Enable detailed error messages |
+
+## Exit Codes
+- 0: Success
+- 1: Operation failed (see error in JSON output)
+"""
+    # Output as JSON with the instructions as a field
+    output_json(success_response({
+        "format": "markdown",
+        "instructions": instructions.strip(),
+        "tip": "Parse 'instructions' field for LLM consumption or pipe to less/cat for human reading"
+    }))
 
 
 @cli.command()
