@@ -367,6 +367,41 @@ Connect to `ws://localhost:8000/api/ws`
 
 ---
 
+## Production Deployment
+
+### Docker
+
+```bash
+# Build and run
+docker compose up -d
+
+# Or build manually
+docker build -t procler .
+docker run -d -p 8000:8000 -v procler-data:/home/procler/.procler procler
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROCLER_LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
+| `PROCLER_LOG_FILE` | - | File path for logs (auto-rotates) |
+| `PROCLER_LOG_ROTATION_INTERVAL` | `3600` | Seconds between log rotation checks |
+| `PROCLER_MAX_LOGS_PER_PROCESS` | `10000` | Max log entries per process |
+| `PROCLER_CONFIG_DIR` | `.procler/` | Config directory path |
+| `PROCLER_DB_PATH` | `.procler/state.db` | Database path |
+| `PROCLER_CORS_ORIGINS` | `localhost` | Comma-separated allowed origins |
+| `PROCLER_DEBUG` | - | Set to 1 for detailed errors |
+
+### Production Features
+
+- **Process Recovery**: On startup, checks for orphaned processes and updates their status
+- **Graceful Shutdown**: SIGTERM/SIGINT triggers orderly process shutdown
+- **Auto Log Rotation**: Background task rotates logs every hour (configurable)
+- **Structured Logging**: Uses loguru with configurable levels and file output
+
+---
+
 ## Frontend
 
 The Vue 3 dashboard provides:

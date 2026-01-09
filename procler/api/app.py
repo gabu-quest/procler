@@ -1,7 +1,10 @@
 """FastAPI application factory."""
 
+import asyncio
 import os
+import signal
 import traceback
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -10,9 +13,141 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
+from ..logging import logger
 
 # Static files directory (where Vue build output goes)
 STATIC_DIR = Path(__file__).parent.parent / "static"
+
+# Background task for log rotation
+_log_rotation_task: asyncio.Task | None = None
+_shutdown_event = asyncio.Event()
+
+
+async def _log_rotation_loop():
+    """Background task to rotate logs periodically."""
+    from ..core import get_process_manager
+
+    rotation_interval = int(os.environ.get("PROCLER_LOG_ROTATION_INTERVAL", 3600))  # 1 hour default
+    max_logs = int(os.environ.get("PROCLER_MAX_LOGS_PER_PROCESS", 10000))
+
+    logger.info(f"Log rotation started (interval={rotation_interval}s, max_logs={max_logs})")
+
+    while not _shutdown_event.is_set():
+        try:
+            await asyncio.sleep(rotation_interval)
+            if _shutdown_event.is_set():
+                break
+
+            manager = get_process_manager()
+            rotated = await manager.rotate_logs(max_entries=max_logs)
+            if rotated:
+                logger.info(f"Rotated logs for {len(rotated)} processes")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Log rotation error: {e}")
+
+
+async def _recover_processes():
+    """Check for orphaned processes on startup and update their status."""
+    from ..db import init_database
+    from ..models import Process, ProcessStatus
+
+    init_database()
+
+    # Find processes marked as running
+    running = Process.select().where(
+        Process.status.in_([ProcessStatus.RUNNING.value, ProcessStatus.STARTING.value])
+    ).all()
+
+    if not running:
+        return
+
+    logger.info(f"Checking {len(running)} processes marked as running...")
+
+    for proc in running:
+        if proc.pid:
+            # Check if PID is still running
+            try:
+                os.kill(proc.pid, 0)  # Signal 0 = check if process exists
+                logger.debug(f"Process '{proc.name}' (PID {proc.pid}) is still running")
+            except (OSError, ProcessLookupError):
+                # Process is dead, update status
+                logger.warning(f"Process '{proc.name}' (PID {proc.pid}) is dead, marking as stopped")
+                proc.status = ProcessStatus.STOPPED.value
+                proc.pid = None
+                proc.save()
+        else:
+            # No PID but marked as running - mark as stopped
+            logger.warning(f"Process '{proc.name}' has no PID but marked running, fixing")
+            proc.status = ProcessStatus.STOPPED.value
+            proc.save()
+
+
+async def _graceful_shutdown():
+    """Stop all running processes gracefully."""
+    from ..core import get_process_manager
+
+    logger.info("Graceful shutdown initiated...")
+    _shutdown_event.set()
+
+    manager = get_process_manager()
+    result = await manager.list_processes()
+
+    if result["success"]:
+        running = [p for p in result["data"]["processes"] if p["status"] == "running"]
+        if running:
+            logger.info(f"Stopping {len(running)} running processes...")
+            for proc in running:
+                try:
+                    await manager.stop(proc["name"], timeout=5.0)
+                    logger.debug(f"Stopped '{proc['name']}'")
+                except Exception as e:
+                    logger.error(f"Failed to stop '{proc['name']}': {e}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan handler for startup and shutdown."""
+    global _log_rotation_task
+
+    # Startup
+    logger.info(f"Procler v{__version__} starting...")
+
+    # Recover orphaned processes
+    await _recover_processes()
+
+    # Start log rotation background task
+    _log_rotation_task = asyncio.create_task(_log_rotation_loop())
+
+    # Register signal handlers for graceful shutdown
+    loop = asyncio.get_event_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, lambda: asyncio.create_task(_graceful_shutdown()))
+        except NotImplementedError:
+            # Windows doesn't support add_signal_handler
+            pass
+
+    logger.info("Procler ready")
+
+    yield
+
+    # Shutdown
+    logger.info("Procler shutting down...")
+
+    # Cancel log rotation task
+    if _log_rotation_task:
+        _log_rotation_task.cancel()
+        try:
+            await _log_rotation_task
+        except asyncio.CancelledError:
+            pass
+
+    # Graceful shutdown of processes
+    await _graceful_shutdown()
+
+    logger.info("Procler stopped")
 
 
 def create_app() -> FastAPI:
@@ -24,6 +159,7 @@ def create_app() -> FastAPI:
         docs_url="/api/docs",
         redoc_url="/api/redoc",
         openapi_url="/api/openapi.json",
+        lifespan=lifespan,
     )
 
     # Global exception handler for unexpected errors
@@ -31,8 +167,7 @@ def create_app() -> FastAPI:
     async def global_exception_handler(request: Request, exc: Exception):
         """Handle unexpected exceptions with structured JSON response."""
         # Log the error for debugging
-        error_trace = traceback.format_exc()
-        print(f"Unexpected error: {exc}\n{error_trace}")
+        logger.exception(f"Unexpected error handling {request.method} {request.url.path}")
 
         return JSONResponse(
             status_code=500,
