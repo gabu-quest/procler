@@ -39,7 +39,7 @@ async def _log_rotation_loop():
                 break
 
             manager = get_process_manager()
-            rotated = await manager.rotate_logs(max_entries=max_logs)
+            rotated = await asyncio.to_thread(manager.cleanup_all_logs, max_logs)
             if rotated:
                 logger.info(f"Rotated logs for {len(rotated)} processes")
         except asyncio.CancelledError:
@@ -50,15 +50,19 @@ async def _log_rotation_loop():
 
 async def _recover_processes():
     """Check for orphaned processes on startup and update their status."""
+    from sqler.query import SQLerField as F
+
     from ..db import init_database
     from ..models import Process, ProcessStatus
 
     init_database()
 
     # Find processes marked as running
-    running = Process.select().where(
-        Process.status.in_([ProcessStatus.RUNNING.value, ProcessStatus.STARTING.value])
-    ).all()
+    all_procs = Process.query().all()
+    running = [
+        p for p in all_procs
+        if p.status in [ProcessStatus.RUNNING.value, ProcessStatus.STARTING.value]
+    ]
 
     if not running:
         return
@@ -88,11 +92,15 @@ async def _graceful_shutdown():
     """Stop all running processes gracefully."""
     from ..core import get_process_manager
 
+    # Check if already shutting down to prevent loops
+    if _shutdown_event.is_set():
+        return
+
     logger.info("Graceful shutdown initiated...")
     _shutdown_event.set()
 
     manager = get_process_manager()
-    result = await manager.list_processes()
+    result = await manager.status()
 
     if result["success"]:
         running = [p for p in result["data"]["processes"] if p["status"] == "running"]
@@ -121,10 +129,19 @@ async def lifespan(app: FastAPI):
     _log_rotation_task = asyncio.create_task(_log_rotation_loop())
 
     # Register signal handlers for graceful shutdown
+    # Only trigger shutdown once even if signal received multiple times
+    shutdown_triggered = False
+
+    def handle_shutdown_signal():
+        nonlocal shutdown_triggered
+        if not shutdown_triggered:
+            shutdown_triggered = True
+            _shutdown_event.set()
+
     loop = asyncio.get_event_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         try:
-            loop.add_signal_handler(sig, lambda: asyncio.create_task(_graceful_shutdown()))
+            loop.add_signal_handler(sig, handle_shutdown_signal)
         except NotImplementedError:
             # Windows doesn't support add_signal_handler
             pass
