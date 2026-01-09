@@ -1,9 +1,12 @@
 """Tests for FastAPI endpoints (Phase 6)."""
 
+import asyncio
+
 import pytest
 from fastapi.testclient import TestClient
 
 from procler.api import create_app
+from procler.api.app import lifespan
 
 
 @pytest.fixture
@@ -20,6 +23,22 @@ def test_health_check(client):
     data = response.json()
     assert data["status"] == "healthy"
     assert "version" in data
+
+
+async def test_lifespan_startup_shutdown():
+    """Test that lifespan context manager starts and shuts down cleanly."""
+    from unittest.mock import AsyncMock, MagicMock
+    from procler.api.app import _log_rotation_loop, _graceful_shutdown
+    
+    # Create a mock app
+    app = MagicMock()
+    
+    # Test that lifespan can be entered and exited without errors
+    async with lifespan(app):
+        # If we get here, startup succeeded
+        await asyncio.sleep(0.1)  # Brief pause to let background tasks start
+    
+    # If we exit cleanly, shutdown succeeded
 
 
 # Process endpoints tests
