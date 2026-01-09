@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  procler:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist process state and config
+      - procler-data:/home/procler/.procler
+      # Optional: mount host docker socket for docker context
+      # - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PROCLER_LOG_LEVEL=INFO
+      - PROCLER_LOG_ROTATION_INTERVAL=3600
+      - PROCLER_MAX_LOGS_PER_PROCESS=10000
+      # - PROCLER_DEBUG=1  # Enable for detailed error messages
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  procler-data:

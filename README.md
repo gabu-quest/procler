@@ -1,203 +1,229 @@
-# The Standard
+# Procgler
 
-**Version 1.0.0** | [Changelog](./CHANGELOG.md) | [Quick Start](#quick-start) | [Adoption Guide](./adoption/CHECKLIST.md)
+**A process manager where Claude Code is a first-class citizen.**
 
-**A comprehensive, LLM-friendly engineering doctrine and design system for modern software development.**
+Procgler gives developers (and their AI coding assistants) a single pane of glass for managing the chaos of modern development environments - where processes span local shells, Docker containers, and various execution contexts.
 
-This repository defines the authoritative standards, practices, and design patterns for building high-quality software with AI agents and human engineers working together.
+## Features
 
-## What's Inside
+- **LLM-First CLI** - JSON-native commands designed for Claude Code integration
+- **Web Dashboard** - Vue 3 dashboard with Cyberpunk design system, real-time updates
+- **Dual Interface Parity** - CLI and Web UI share the same ProcessManager core
+- **Context Abstraction** - Manage local processes and Docker containers uniformly
+- **Snippets** - Save and reuse common commands with tagging
+- **Real-time Updates** - WebSocket support for live status and log streaming
 
-### 🤖 Core Agent Doctrine
+## Installation
 
-**[`agents.md`](./agents.md)** — The authoritative operating rules for AI agents working in codebases.
+```bash
+pip install procler
+```
 
-Defines how agents should:
-- Execute work decisively without artificial limitations
-- Make senior-engineer quality decisions
-- Handle tasks end-to-end with proper testing
-- Maintain clean Git history
-- Follow modern tooling standards (Python 3.12+, Vue 3, etc.)
-- Work in specialized roles (Planner, Dev, Test Engineer, Security Reviewer, etc.)
+Or install from source:
 
-**Key principle:** Fast, decisive execution with rigorous correctness and minimal drama.
-
----
-
-### 📋 Engineering Doctrines
-
-Located in **[`docs/doctrine/`](./docs/doctrine/)** — Specialized doctrine documents covering all aspects of software engineering:
-
-- **[testing.md](./docs/testing.md)** — Modern, strict testing rules for deterministic, realistic, documentary tests
-- **[design.md](./docs/doctrine/design.md)** — When to write design docs and ADRs; how to avoid architecture drift
-- **[git.md](./docs/doctrine/git.md)** — Branching, commits, merges, conflict handling, `.gitignore` policy
-- **[ci.md](./docs/doctrine/ci.md)** — Fast vs full test suites, caching, artifacts, flake policy, quality gates
-- **[security.md](./docs/doctrine/security.md)** — Secure defaults, OWASP-aligned baseline, security testing readiness
-- **[style.md](./docs/doctrine/style.md)** — Code layout, naming, patterns, API envelopes, UI/A11Y consistency
-- **[handoff.md](./docs/doctrine/handoff.md)** — Handoff format and protocols for orchestrators and multi-session work
-
-All doctrine documents use **MUST / MUST NOT / SHOULD** in the normative standards sense (RFC 2119 style).
-
----
-
-### 🎨 Vue 3 Design Systems
-
-**For Vue 3 projects:** See **[The Style](https://github.com/gabu-quest/the-style)** - A separate repository with two complete Naive UI design systems (Goshuin & Cyberpunk editions).
-
----
-
-## 📚 Resources
-
-### Quick References
-One-page printable summaries for quick reference:
-- **[Agent Doctrine Quick Ref](./docs/quick-reference/agents-quick-ref.md)** - Core principles on one page
-- **[Testing Quick Ref](./docs/quick-reference/testing-quick-ref.md)** - Testing rules summary
-
-### Examples
-Real-world examples of artifacts and workflows:
-- **[Planning Artifacts](./examples/planning-artifacts/)** - Sample SPEC, TASKS, DESIGN, PLAN
-- **[Pull Requests](./examples/pull-request/)** - Example PR descriptions
-- **[ADRs](./examples/adr/)** - Architecture Decision Record examples
-
-### For AI Agents
-- **[CLAUDE.md](./CLAUDE.md)** - Context file for AI agents working in this repository
-- Use this to understand how to maintain and improve The Standard itself
-
-### Adoption
-- **[Adoption Checklist](./adoption/CHECKLIST.md)** - Step-by-step guide to adopting The Standard
-- **[GitHub Templates](./.github/)** - Issue and PR templates enforcing the standard
-
----
+```bash
+git clone https://github.com/yourusername/procler.git
+cd procler
+uv sync --all-extras
+```
 
 ## Quick Start
 
-### Using as a GitHub Template (Recommended)
-
-This repository is a **GitHub template**. To use it:
-
-1. **Click "Use this template"** at the top of this repo
-2. **Create your new repository** from the template
-3. **Follow the [Template Usage Guide](./TEMPLATE_USAGE.md)** for setup
-
-See **[TEMPLATE_USAGE.md](./TEMPLATE_USAGE.md)** for complete instructions.
-
----
-
-### For AI Agents
-
-1. Read **[`agents.md`](./agents.md)** first — this defines your core operating rules
-2. Review **[`docs/testing.md`](./docs/testing.md)** — non-negotiable testing standards
-3. Reference other doctrine docs as needed for specialized work
-4. Use **[`.claude/skills/`](./.claude/skills/)** — Reusable skills for code review, design, testing, handoffs
-
-### For Human Engineers
-
-1. Start with **[`agents.md`](./agents.md)** to understand the development philosophy
-2. Browse **[`docs/doctrine/`](./docs/doctrine/)** for domain-specific guidance
-3. For Vue 3 UI, see **[The Style](https://github.com/gabu-quest/the-style)** design systems
-
-### Manual Adoption (Alternative to Template)
-
-If you prefer to copy specific files:
+### Process Management
 
 ```bash
-# Core agent doctrine
-cp agents.md your-repo/
+# Define a process
+procler define --name my-api --command "uvicorn main:app --port 8000"
 
-# Testing doctrine (highly recommended)
-cp docs/testing.md your-repo/docs/
+# Start it
+procler start my-api
 
-# Full doctrine suite
-cp -r docs/doctrine your-repo/docs/
+# Check status (JSON output)
+procler status my-api
 
-# Claude skills
-cp -r .claude/skills your-repo/.claude/
+# View logs
+procler logs my-api --tail 50 --since 5m
 
-# Vue 3 design system (separate repo)
-# See https://github.com/gabu-quest/the-style
+# Stop it
+procler stop my-api
+
+# Restart
+procler restart my-api
 ```
 
-Then update your project's README to reference these standards.
+### Docker Processes
 
----
+```bash
+# Define a process that runs in a Docker container
+procler define \
+  --name db-migrate \
+  --command "alembic upgrade head" \
+  --context docker \
+  --container api-container
 
-## Philosophy
+# Execute arbitrary command in container
+procler exec "pip list" --context docker --container api-container
+```
 
-This standard is built on these principles:
+### Snippets (Reusable Commands)
 
-1. **Execution over discussion** — Do the work, don't debate time limits
-2. **Quality is non-negotiable** — Tests must be meaningful, code must be correct
-3. **Clarity over cleverness** — Boring, stable solutions win
-4. **Documentation as code** — Tests, types, and artifacts are documentation
-5. **AI-human collaboration** — Standards designed for both agents and engineers
-6. **Modern tooling** — No legacy tech debt; use actively maintained, boring tools
+```bash
+# Save a snippet
+procler snippet save \
+  --name rebuild-api \
+  --command "docker compose build api" \
+  --tags docker,build
 
----
+# List snippets (with optional tag filter)
+procler snippet list --tag docker
 
-## Standards Hierarchy
+# Run a snippet
+procler snippet run rebuild-api
+```
 
-When instructions conflict, follow this precedence (highest → lowest):
+### Web Server
 
-1. **Current user request** (explicit instruction in this session)
-2. **This repository's doctrine** (`agents.md` + doctrine files)
-3. **Repository conventions** (existing architecture, patterns)
-4. **Everything else** (default habits, tool suggestions)
+```bash
+# Start the API server
+procler serve --host 0.0.0.0 --port 8000
 
----
+# With hot reload for development
+procler serve --reload
+```
 
-## Technology Standards
+## CLI Output
 
-### Python
-- Python **3.12+**
-- **`uv`** for environment and dependency management
-- **`pyproject.toml`** as source of truth (PEP 621)
-- **Pydantic v2** only
-- Modern **FastAPI** patterns
-- **pytest** for testing
-- **httpx** for HTTP clients
+All CLI commands return structured JSON for easy parsing by scripts and LLMs:
 
-### Node.js/TypeScript
-- **Node.js 20 LTS+** with ESM (not CommonJS)
-- **TypeScript 5.x** with strict mode
-- **pnpm** for package management (or npm/yarn consistently)
-- **Vitest** for testing (not Jest)
-- **Zod** for runtime validation
-- **tsup** or **esbuild** for bundling
+```json
+{
+  "success": true,
+  "data": {
+    "processes": [
+      {
+        "name": "my-api",
+        "status": "running",
+        "pid": 12345,
+        "uptime_seconds": 3600
+      }
+    ]
+  }
+}
+```
 
-### Frontend (Vue)
-- **Vue 3** with Composition API + `<script setup>`
-- **Pinia** for state management
-- **Vitest** for unit/component tests
-- **Playwright** for E2E tests (mandatory for all UI features)
-- **Naive UI** for component library
-- **Phosphor Icons** for iconography
+Error responses include helpful context:
 
----
+```json
+{
+  "success": false,
+  "error": "Container 'db-postgres' not found",
+  "error_code": "container_not_found",
+  "suggestion": "Run 'docker ps -a' to list available containers"
+}
+```
 
-## Contributing
+## REST API
 
-This is a living standard. Improvements welcome, but changes must:
+Base URL: `http://localhost:8000/api`
 
-1. Maintain the core philosophy of decisive execution and rigorous quality
-2. Be LLM-friendly (clear, explicit, normative language)
-3. Include rationale (why, not just what)
-4. Not add complexity without clear value
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/processes` | GET | List all processes |
+| `/api/processes` | POST | Create process |
+| `/api/processes/{name}` | GET | Get process |
+| `/api/processes/{name}` | DELETE | Remove process |
+| `/api/processes/{name}/start` | POST | Start process |
+| `/api/processes/{name}/stop` | POST | Stop process |
+| `/api/processes/{name}/restart` | POST | Restart process |
+| `/api/logs/{name}` | GET | Get logs (?tail=100&since=5m) |
+| `/api/snippets` | GET | List snippets (?tag=filter) |
+| `/api/snippets` | POST | Create snippet |
+| `/api/snippets/{name}` | GET | Get snippet |
+| `/api/snippets/{name}` | DELETE | Remove snippet |
+| `/api/snippets/{name}/run` | POST | Run snippet |
+| `/api/health` | GET | Health check |
 
----
+## WebSocket
+
+Connect to `ws://localhost:8000/api/ws` for real-time updates.
+
+```javascript
+// Subscribe to logs for a process
+ws.send(JSON.stringify({action: "subscribe_logs", process_id: 1}));
+
+// Subscribe to status updates (all processes)
+ws.send(JSON.stringify({action: "subscribe_status"}));
+
+// Receive updates
+// {"type": "log", "process_id": 1, "data": {"line": "...", "stream": "stdout"}}
+// {"type": "status", "process_id": 1, "data": {"status": "running", "pid": 123}}
+```
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Backend | Python 3.12+, FastAPI |
+| Database | SQLite via [sqler](https://pypi.org/project/sqler/) |
+| Frontend | Vue 3, Vite, Pinia, Naive UI |
+| CLI | Click |
+| Docker | docker-py SDK |
+| Real-time | WebSockets |
+
+## Development
+
+```bash
+# Install dev dependencies
+uv sync --all-extras
+
+# Run tests (91 tests)
+uv run pytest tests/ -v
+
+# Run CLI in development
+uv run python -m procler --help
+
+# Run dev server with hot reload
+uv run python -m procler serve --reload
+
+# Frontend development
+cd frontend && npm install && npm run dev
+```
+
+## Web Dashboard
+
+The Vue 3 frontend provides a visual interface for managing processes and snippets:
+
+- **Process List** - View all defined processes with status, start/stop/restart controls
+- **Process Detail** - Live log streaming via WebSocket, process info
+- **Snippets** - Save, manage, and run reusable commands
+
+### Running the Dashboard
+
+```bash
+# Terminal 1: Start the backend
+uv run python -m procler serve --reload
+
+# Terminal 2: Start the frontend dev server
+cd frontend && npm run dev
+```
+
+Open http://localhost:5173 to access the dashboard.
+
+## Claude Code Integration
+
+Procgler is designed for seamless AI assistant integration:
+
+```
+Human: "My auth-api seems slow, check its recent logs and restart it if there are errors"
+
+Claude Code:
+1. procler logs auth-api --tail 100
+2. [Analyzes JSON log output]
+3. procler restart auth-api
+4. procler status auth-api
+5. Reports back to human
+```
 
 ## License
 
-See [LICENSE](./LICENSE) for details.
-
----
-
-## Adoption
-
-To adopt this standard in your repository:
-
-1. Copy the relevant doctrine files
-2. Link them from your main README
-3. Ensure your agents and engineers reference them
-4. Adapt as needed for your domain, but maintain the core principles
-
-**Remember:** These are guidelines designed to produce senior-engineer quality results with minimal friction. Follow them unless you have a compelling reason not to.
+MIT
