@@ -189,11 +189,14 @@ const columns: DataTableColumns<Process> = [
   {
     title: "Name",
     key: "name",
+    minWidth: 180,
     render: (row) =>
       h(
         "a",
         {
+          class: "name-link",
           style: { color: "var(--n-primary-color)", cursor: "pointer" },
+          title: row.name,
           onClick: () => router.push(`/process/${row.name}`),
         },
         row.name
@@ -487,6 +490,15 @@ onMounted(async () => {
   font-size: 1rem;
   padding-top: 0.75rem;
   padding-bottom: 0.75rem;
+}
+
+.name-link {
+  display: inline-flex;
+  align-items: center;
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .action-buttons {
