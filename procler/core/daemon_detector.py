@@ -10,9 +10,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shlex
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+
+def _quote_user(user: str | int | None) -> str:
+    """Quote user parameter for shell commands."""
+    if user is None:
+        return "1000"
+    return shlex.quote(str(user))
 
 
 @dataclass
@@ -124,7 +132,7 @@ class DaemonDetector:
             True if process is running, False otherwise
         """
         if container:
-            cmd = f"docker exec -u {user or 1000} {container} ps -p {pid}"
+            cmd = f"docker exec -u {_quote_user(user)} {shlex.quote(container)} ps -p {pid}"
         else:
             cmd = f"ps -p {pid}"
 
@@ -155,7 +163,7 @@ class DaemonDetector:
             List of ProcessInfo objects for all running processes
         """
         if container:
-            cmd = f"docker exec -u {user or 1000} {container} ps aux"
+            cmd = f"docker exec -u {_quote_user(user)} {shlex.quote(container)} ps aux"
         else:
             cmd = "ps aux"
 
@@ -199,10 +207,15 @@ class DaemonDetector:
         Returns:
             The PID from the file, or None if file doesn't exist/is invalid
         """
+        # Validate pidfile path - reject path traversal attempts
+        if ".." in pidfile or pidfile.startswith("/etc/") or pidfile.startswith("/root/"):
+            logger.warning(f"Suspicious pidfile path rejected: {pidfile}")
+            return None
+
         if container:
-            cmd = f"docker exec -u {user or 1000} {container} cat {pidfile}"
+            cmd = f"docker exec -u {_quote_user(user)} {shlex.quote(container)} cat {shlex.quote(pidfile)}"
         else:
-            cmd = f"cat {pidfile}"
+            cmd = f"cat {shlex.quote(pidfile)}"
 
         try:
             proc = await asyncio.create_subprocess_shell(
@@ -248,10 +261,14 @@ class DaemonDetector:
         # e.g., "msgd" becomes "[m]sgd"
         safe_pattern = self._make_grep_pattern(pattern)
 
+        # Escape pattern for shell - use shlex.quote and strip outer quotes for grep
+        # since we're already inside quotes
+        escaped_pattern = shlex.quote(safe_pattern)[1:-1]  # Remove outer quotes added by shlex
+
         if container:
-            cmd = f"docker exec -u {user or 1000} {container} " f"bash -c \"ps aux | grep '{safe_pattern}'\""
+            cmd = f"docker exec -u {_quote_user(user)} {shlex.quote(container)} bash -c \"ps aux | grep '{escaped_pattern}'\""
         else:
-            cmd = f"ps aux | grep '{safe_pattern}'"
+            cmd = f"ps aux | grep '{escaped_pattern}'"
 
         try:
             proc = await asyncio.create_subprocess_shell(

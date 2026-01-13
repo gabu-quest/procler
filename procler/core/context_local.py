@@ -112,11 +112,29 @@ class LocalContext(ExecutionContext):
         stream_type: str,
         managed: ManagedProcess,
         callback: Callable[[str], None] | None,
+        read_timeout: float = 60.0,
     ) -> None:
-        """Read lines from a stream and invoke callback."""
+        """Read lines from a stream and invoke callback.
+
+        Args:
+            stream: The stream to read from
+            stream_type: "stdout" or "stderr"
+            managed: The managed process instance
+            callback: Optional callback for each line
+            read_timeout: Timeout for each readline() call (default 60s)
+        """
         try:
             while True:
-                line = await stream.readline()
+                try:
+                    # Use timeout to prevent hanging forever on blocked streams
+                    line = await asyncio.wait_for(stream.readline(), timeout=read_timeout)
+                except TimeoutError:
+                    # Check if process is still running
+                    if not managed.is_running():
+                        break
+                    # Process still running but no output - continue waiting
+                    continue
+
                 if not line:
                     break
                 decoded = line.decode("utf-8", errors="replace").rstrip("\n\r")
@@ -144,26 +162,29 @@ class LocalContext(ExecutionContext):
         if not managed:
             return -1
 
-        if not managed.is_running():
-            exit_code = managed.process.returncode or 0
-            await managed.cancel_io_tasks()
-            del self._processes[handle.pid]
-            return exit_code
-
-        # Try graceful termination first
-        managed.terminate()
-
         try:
-            exit_code = await asyncio.wait_for(managed.wait(), timeout=timeout)
-        except TimeoutError:
-            # Force kill if graceful shutdown times out
-            managed.kill()
-            exit_code = await managed.wait()
+            if not managed.is_running():
+                exit_code = managed.process.returncode or 0
+                return exit_code
 
-        await managed.cancel_io_tasks()
-        del self._processes[handle.pid]
+            # Try graceful termination first
+            managed.terminate()
 
-        return exit_code
+            try:
+                exit_code = await asyncio.wait_for(managed.wait(), timeout=timeout)
+            except TimeoutError:
+                # Force kill if graceful shutdown times out
+                managed.kill()
+                exit_code = await managed.wait()
+
+            return exit_code
+        finally:
+            # Always cleanup IO tasks and remove from tracking dict
+            try:
+                await managed.cancel_io_tasks()
+            except Exception:
+                pass  # Best effort cleanup
+            self._processes.pop(handle.pid, None)
 
     async def is_running(self, handle: ProcessHandle) -> bool:
         """Check if a process is still running."""

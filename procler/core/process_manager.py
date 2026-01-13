@@ -1,10 +1,14 @@
 """Central process manager coordinating all process operations."""
 
 import asyncio
+import logging
 import os
+import shlex
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from sqler.query import SQLerField as F
 
@@ -197,6 +201,9 @@ def wrap_command_with_log_redirect(command: str, log_path: str) -> str:
     For bash -c commands, we inject the redirect inside the quoted command.
     For other commands, we append the redirect.
     """
+    # Quote the log path to prevent shell injection
+    safe_log_path = shlex.quote(log_path)
+
     # Check if this is a bash -c "..." pattern
     if 'bash -c "' in command or "bash -c '" in command:
         # Find the inner command and add redirect there
@@ -211,10 +218,12 @@ def wrap_command_with_log_redirect(command: str, log_path: str) -> str:
             quote = match.group(3)
             suffix = match.group(4)
             # Add redirect to inner command (truncate on start with >)
-            return f"{prefix}{inner_cmd} > {log_path} 2>&1{quote}{suffix}"
+            # Inside bash -c, strip outer quotes from safe_log_path since we're already quoted
+            inner_safe_path = safe_log_path[1:-1] if safe_log_path.startswith("'") else safe_log_path
+            return f"{prefix}{inner_cmd} > {inner_safe_path} 2>&1{quote}{suffix}"
 
     # For simple commands, just append redirect
-    return f"{command} > {log_path} 2>&1"
+    return f"{command} > {safe_log_path} 2>&1"
 
 
 class ProcessManager:
@@ -223,6 +232,7 @@ class ProcessManager:
     def __init__(self):
         self._contexts: dict[str, ExecutionContext] = {}
         self._handles: dict[int, ProcessHandle] = {}  # process_id -> handle
+        self._lock = asyncio.Lock()  # Protects _handles from concurrent access
         self._init_contexts()
 
     def _init_contexts(self) -> None:
@@ -247,6 +257,21 @@ class ProcessManager:
         results = Process.query().filter(F("name") == name).all()
         return results[0] if results else None
 
+    async def _get_handle(self, process_id: int) -> ProcessHandle | None:
+        """Thread-safe get handle."""
+        async with self._lock:
+            return self._handles.get(process_id)
+
+    async def _set_handle(self, process_id: int, handle: ProcessHandle) -> None:
+        """Thread-safe set handle."""
+        async with self._lock:
+            self._handles[process_id] = handle
+
+    async def _remove_handle(self, process_id: int) -> None:
+        """Thread-safe remove handle."""
+        async with self._lock:
+            self._handles.pop(process_id, None)
+
     def _log_callback(self, process_id: int, stream: str):
         """Create a callback for logging output."""
 
@@ -258,18 +283,24 @@ class ProcessManager:
                 line=line,
                 timestamp=timestamp,
             )
-            entry.save()
+            try:
+                entry.save()
+            except Exception as e:
+                logger.error(f"Failed to save log entry for process {process_id}: {e}")
 
             # Emit event for WebSocket broadcast
-            get_event_bus().emit_sync(
-                EVENT_LOG_ENTRY,
-                {
-                    "process_id": process_id,
-                    "stream": stream,
-                    "line": line,
-                    "timestamp": timestamp,
-                },
-            )
+            try:
+                get_event_bus().emit_sync(
+                    EVENT_LOG_ENTRY,
+                    {
+                        "process_id": process_id,
+                        "stream": stream,
+                        "line": line,
+                        "timestamp": timestamp,
+                    },
+                )
+            except Exception as e:
+                logger.error(f"Failed to emit log event for process {process_id}: {e}")
 
         return callback
 
@@ -278,27 +309,39 @@ class ProcessManager:
 
         def callback(exit_code: int) -> None:
             # Reload process to get latest state
-            updated = Process.from_id(process._id)
+            try:
+                updated = Process.from_id(process._id)
+            except Exception as e:
+                logger.error(f"Failed to reload process {process._id} on exit: {e}")
+                self._handles.pop(process._id, None)
+                return
+
             if updated:
                 updated.status = ProcessStatus.STOPPED.value
                 updated.exit_code = exit_code
                 updated.pid = None
-                updated.save()
-                # Remove handle
-                if process._id in self._handles:
-                    del self._handles[process._id]
+                try:
+                    updated.save()
+                except Exception as e:
+                    logger.error(f"Failed to save process {process._id} on exit: {e}")
+
+                # Remove handle (use pop() to avoid race with concurrent access)
+                self._handles.pop(process._id, None)
 
                 # Emit status change event
-                get_event_bus().emit_sync(
-                    EVENT_STATUS_CHANGE,
-                    {
-                        "process_id": process._id,
-                        "name": updated.name,
-                        "status": updated.status,
-                        "exit_code": exit_code,
-                        "pid": None,
-                    },
-                )
+                try:
+                    get_event_bus().emit_sync(
+                        EVENT_STATUS_CHANGE,
+                        {
+                            "process_id": process._id,
+                            "name": updated.name,
+                            "status": updated.status,
+                            "exit_code": exit_code,
+                            "pid": None,
+                        },
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to emit exit event for process {process._id}: {e}")
 
         return callback
 
@@ -321,7 +364,7 @@ class ProcessManager:
         # Check if already running
         if process.status == ProcessStatus.RUNNING.value:
             is_running = False
-            handle = self._handles.get(process._id)
+            handle = await self._get_handle(process._id)
             if handle:
                 context = self._get_context(process.context_type)
                 is_running = await context.is_running(handle)
@@ -495,8 +538,8 @@ class ProcessManager:
             process.error_message = None
             process.save()
 
-            # Store handle
-            self._handles[process._id] = handle
+            # Store handle (thread-safe)
+            await self._set_handle(process._id, handle)
 
             # Emit status change event
             get_event_bus().emit_sync(
@@ -562,7 +605,7 @@ class ProcessManager:
                 },
             }
 
-        handle = self._handles.get(process._id)
+        handle = await self._get_handle(process._id)
 
         # Update status to stopping
         process.status = ProcessStatus.STOPPING.value
@@ -599,9 +642,8 @@ class ProcessManager:
             process.exit_code = exit_code
             process.save()
 
-            # Remove handle
-            if process._id in self._handles:
-                del self._handles[process._id]
+            # Remove handle (thread-safe)
+            await self._remove_handle(process._id)
 
             # Emit status change event
             get_event_bus().emit_sync(
@@ -773,8 +815,7 @@ class ProcessManager:
                     if process.status == ProcessStatus.RUNNING.value:
                         process.status = ProcessStatus.STOPPED.value
                         process.pid = None
-                        if process._id in self._handles:
-                            del self._handles[process._id]
+                        await self._remove_handle(process._id)
                         process.save()
                     return
 
@@ -783,7 +824,7 @@ class ProcessManager:
             return
 
         # Non-daemon mode: Use handle or PID check
-        handle = self._handles.get(process._id)
+        handle = await self._get_handle(process._id)
         if handle:
             # We have a handle, check via context
             context = self._get_context(process.context_type)
@@ -791,7 +832,7 @@ class ProcessManager:
                 process.status = ProcessStatus.STOPPED.value
                 process.pid = None
                 process.save()
-                del self._handles[process._id]
+                await self._remove_handle(process._id)
         elif process.pid:
             # No handle but we have a PID - check in the correct context
             is_running = await self._is_process_pid_running(process)
