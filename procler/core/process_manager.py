@@ -360,6 +360,13 @@ class ProcessManager:
                 process.pid = existing_pid
                 process.started_at = datetime.now().isoformat()
                 process.adopted = True
+
+                # Set up log_file path for adopted processes
+                # Note: We can't redirect output of already-running processes,
+                # but setting the path allows logs() to look for it and shows
+                # users where logs would go if they restart via procler
+                log_file_path = getattr(process, "log_file", None) or get_log_file_path(process.name)
+                process.log_file = log_file_path
                 process.save()
 
                 append_changelog(
@@ -755,6 +762,10 @@ class ProcessManager:
                         process.pid = found_pid
                         if not process.started_at:
                             process.started_at = datetime.now().isoformat()
+                        # Set log_file path for auto-adopted processes
+                        if not getattr(process, "log_file", None):
+                            process.log_file = get_log_file_path(process.name)
+                            process.adopted = True
                         process.save()
                     return
                 else:
@@ -915,6 +926,7 @@ class ProcessManager:
             "daemon_match_pattern": getattr(process, "daemon_match_pattern", None),
             "daemon_container": getattr(process, "daemon_container", None),
             "log_file": getattr(process, "log_file", None),
+            "adopted": getattr(process, "adopted", False) or None,
         }
 
         # Add Linux process state if running and we have a PID
@@ -1034,15 +1046,28 @@ class ProcessManager:
                     for line in lines
                 ]
 
+        result_data = {
+            "process": name,
+            "logs": log_entries,
+            "count": len(log_entries),
+            "source": log_source,
+            "log_file": log_file,
+        }
+
+        # Add helpful message for adopted processes with no logs
+        is_adopted = getattr(process, "adopted", False)
+        if is_adopted and not log_entries:
+            result_data["adopted"] = True
+            result_data["note"] = (
+                "This process was adopted (found already running). "
+                "Historical logs are not available. Restart via 'procler restart' to capture logs."
+            )
+        elif is_adopted:
+            result_data["adopted"] = True
+
         return {
             "success": True,
-            "data": {
-                "process": name,
-                "logs": log_entries,
-                "count": len(log_entries),
-                "source": log_source,
-                "log_file": log_file,
-            },
+            "data": result_data,
         }
 
     async def exec_command(
