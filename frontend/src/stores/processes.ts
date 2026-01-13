@@ -15,7 +15,7 @@ export interface Process {
   context: "local" | "docker";
   container: string | null;
   cwd: string | null;
-  tags: string | null;
+  tags: string[] | null;
   status: "stopped" | "running" | "failed";
   pid: number | null;
   started_at: string | null;

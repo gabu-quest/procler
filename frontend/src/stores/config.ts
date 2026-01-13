@@ -77,7 +77,8 @@ export const useConfigStore = defineStore("config", () => {
     loading.value = true;
     error.value = null;
     try {
-      const response = await fetch(`/api/config/changelog?tail=${tail}`);
+      // Use format=raw to get string entries (frontend uses .includes() on them)
+      const response = await fetch(`/api/config/changelog?tail=${tail}&format=raw`);
       const data = await response.json();
       if (data.success) {
         changelog.value = data.data.entries;

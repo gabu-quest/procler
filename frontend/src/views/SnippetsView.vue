@@ -51,8 +51,8 @@
 
             <template v-if="snippet.tags" #footer>
               <n-space size="small">
-                <n-tag v-for="tag in snippet.tags.split(',')" :key="tag" size="small">
-                  {{ tag.trim() }}
+                <n-tag v-for="tag in snippet.tags" :key="tag" size="small">
+                  {{ tag }}
                 </n-tag>
               </n-space>
             </template>

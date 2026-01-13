@@ -79,8 +79,8 @@
               </n-descriptions-item>
               <n-descriptions-item v-if="store.currentProcess.tags" label="Tags">
                 <n-space size="small">
-                  <n-tag v-for="tag in store.currentProcess.tags.split(',')" :key="tag" size="small">
-                    {{ tag.trim() }}
+                  <n-tag v-for="tag in store.currentProcess.tags" :key="tag" size="small">
+                    {{ tag }}
                   </n-tag>
                 </n-space>
               </n-descriptions-item>
