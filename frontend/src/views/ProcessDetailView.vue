@@ -1,12 +1,8 @@
 <template>
   <div class="process-detail">
+    <Breadcrumbs />
     <div class="page-header">
       <div class="header-left">
-        <n-button quaternary @click="router.back()">
-          <template #icon>
-            <PhArrowLeft />
-          </template>
-        </n-button>
         <h1>{{ store.currentProcess?.name ?? "Loading..." }}</h1>
         <n-tag v-if="store.currentProcess" :type="statusColor(store.currentProcess.status)" size="medium">
           {{ store.currentProcess.status }}
@@ -97,23 +93,49 @@
         <n-gi>
           <n-card title="Logs" class="logs-card">
             <template #header-extra>
-              <n-space size="small">
-                <n-button size="small" @click="fetchLogs">Refresh</n-button>
+              <n-space size="small" align="center">
+                <n-input
+                  v-model:value="logFilter"
+                  placeholder="Filter logs..."
+                  size="small"
+                  clearable
+                  style="width: 180px"
+                  aria-label="Filter logs"
+                >
+                  <template #prefix>
+                    <PhMagnifyingGlass :size="14" />
+                  </template>
+                </n-input>
+                <n-select
+                  v-model:value="streamFilter"
+                  :options="streamOptions"
+                  size="small"
+                  style="width: 100px"
+                  aria-label="Filter by stream"
+                />
+                <n-button size="small" @click="fetchLogs" aria-label="Refresh logs">Refresh</n-button>
                 <n-tag :type="connected ? 'success' : 'default'" size="small">
                   {{ connected ? "Live" : "Disconnected" }}
                 </n-tag>
               </n-space>
             </template>
             <div class="log-viewer" ref="logViewerRef">
-              <div v-if="store.logs.length === 0" class="log-empty">No logs available</div>
+              <div v-if="filteredLogs.length === 0" class="log-empty">
+                {{ store.logs.length === 0 ? "No logs available" : "No logs match filter" }}
+              </div>
               <div
-                v-for="(log, idx) in store.logs"
+                v-for="(log, idx) in filteredLogs"
                 :key="idx"
                 :class="['log-line', `log-${log.stream}`]"
               >
                 <span class="log-timestamp">{{ formatTimestamp(log.timestamp) }}</span>
-                <span class="log-content">{{ log.line }}</span>
+                <span class="log-content" v-html="highlightMatch(log.line)"></span>
               </div>
+            </div>
+            <div v-if="logFilter || streamFilter !== 'all'" class="log-footer">
+              <span class="log-count">
+                Showing {{ filteredLogs.length }} of {{ store.logs.length }} logs
+              </span>
             </div>
           </n-card>
         </n-gi>
@@ -138,7 +160,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import {
   NButton,
   NCard,
@@ -152,20 +174,30 @@ import {
   NModal,
   NAlert,
   NEmpty,
+  NInput,
+  NSelect,
   useMessage,
 } from "naive-ui";
-import { PhArrowLeft, PhPlay, PhStop, PhArrowsClockwise } from "@phosphor-icons/vue";
+import { PhPlay, PhStop, PhArrowsClockwise, PhMagnifyingGlass } from "@phosphor-icons/vue";
 import { useProcessStore } from "@/stores/processes";
 import { useWebSocket } from "@/composables/useWebSocket";
+import Breadcrumbs from "@/components/Breadcrumbs.vue";
 
 const route = useRoute();
-const router = useRouter();
 const store = useProcessStore();
 const message = useMessage();
 const { connected, connect, subscribeLogs, unsubscribeLogs, subscribeStatus } = useWebSocket();
 
 const logViewerRef = ref<HTMLElement | null>(null);
 const showCommandModal = ref(false);
+const logFilter = ref("");
+const streamFilter = ref<"all" | "stdout" | "stderr">("all");
+
+const streamOptions = [
+  { label: "All", value: "all" },
+  { label: "stdout", value: "stdout" },
+  { label: "stderr", value: "stderr" },
+];
 
 const processName = route.params.name as string;
 const contextLabel = computed(() => {
@@ -174,6 +206,41 @@ const contextLabel = computed(() => {
 });
 const contextTagType = computed(() => (contextLabel.value === "docker" ? "info" : "default"));
 const commandValue = computed(() => store.currentProcess?.command ?? "");
+
+const filteredLogs = computed(() => {
+  let logs = store.logs;
+
+  // Filter by stream
+  if (streamFilter.value !== "all") {
+    logs = logs.filter((log) => log.stream === streamFilter.value);
+  }
+
+  // Filter by search term
+  if (logFilter.value.trim()) {
+    const searchTerm = logFilter.value.toLowerCase();
+    logs = logs.filter((log) => log.line.toLowerCase().includes(searchTerm));
+  }
+
+  return logs;
+});
+
+function highlightMatch(text: string): string {
+  if (!logFilter.value.trim()) return escapeHtml(text);
+
+  const searchTerm = logFilter.value.trim();
+  const regex = new RegExp(`(${escapeRegex(searchTerm)})`, "gi");
+  return escapeHtml(text).replace(regex, '<mark class="log-highlight">$1</mark>');
+}
+
+function escapeHtml(text: string): string {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function escapeRegex(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 function openCommand() {
   if (!commandValue.value) return;
@@ -400,5 +467,23 @@ onUnmounted(() => {
   color: var(--n-error-color);
   font-size: 0.75rem;
   font-weight: 500;
+}
+
+.log-footer {
+  padding: 0.5rem;
+  border-top: 1px solid var(--n-border-color);
+  background: var(--n-card-color);
+}
+
+.log-count {
+  font-size: 0.75rem;
+  color: var(--n-text-color-3);
+}
+
+:deep(.log-highlight) {
+  background: var(--n-warning-color);
+  color: var(--n-text-color-base);
+  padding: 0 0.125rem;
+  border-radius: 2px;
 }
 </style>
