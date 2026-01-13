@@ -116,6 +116,7 @@ import {
   NTag,
   NSpace,
   NEmpty,
+  NPopconfirm,
   useMessage,
   type DataTableColumns,
 } from "naive-ui";
@@ -254,14 +255,15 @@ const columns: DataTableColumns<Process> = [
     key: "actions",
     width: 220,
     render: (row) =>
-      h("div", { class: "action-buttons" }, [
+      h("div", { class: "action-buttons", role: "group", "aria-label": `Actions for ${row.name}` }, [
         h(
           NButton,
           {
             size: "small",
             quaternary: true,
             circle: true,
-            title: "View",
+            title: "View details",
+            "aria-label": `View details for ${row.name}`,
             onClick: () => router.push(`/process/${row.name}`),
           },
           { icon: () => h(PhEye, { weight: "regular" }) }
@@ -273,7 +275,8 @@ const columns: DataTableColumns<Process> = [
             quaternary: true,
             type: "success",
             circle: true,
-            title: "Start",
+            title: "Start process",
+            "aria-label": `Start ${row.name}`,
             disabled: row.status === "running",
             onClick: () => handleStart(row.name),
           },
@@ -286,7 +289,8 @@ const columns: DataTableColumns<Process> = [
             quaternary: true,
             type: "warning",
             circle: true,
-            title: "Stop",
+            title: "Stop process",
+            "aria-label": `Stop ${row.name}`,
             disabled: row.status !== "running",
             onClick: () => handleStop(row.name),
           },
@@ -299,22 +303,32 @@ const columns: DataTableColumns<Process> = [
             quaternary: true,
             type: "info",
             circle: true,
-            title: "Restart",
+            title: "Restart process",
+            "aria-label": `Restart ${row.name}`,
             onClick: () => handleRestart(row.name),
           },
           { icon: () => h(PhArrowsClockwise, { weight: "regular" }) }
         ),
         h(
-          NButton,
+          NPopconfirm,
           {
-            size: "small",
-            quaternary: true,
-            type: "error",
-            circle: true,
-            title: "Remove",
-            onClick: () => handleRemove(row.name),
+            onPositiveClick: () => handleRemove(row.name),
           },
-          { icon: () => h(PhTrash, { weight: "regular" }) }
+          {
+            trigger: () => h(
+              NButton,
+              {
+                size: "small",
+                quaternary: true,
+                type: "error",
+                circle: true,
+                title: "Remove process",
+                "aria-label": `Remove ${row.name}`,
+              },
+              { icon: () => h(PhTrash, { weight: "regular" }) }
+            ),
+            default: () => `Remove process "${row.name}"?`,
+          }
         ),
       ]),
   },

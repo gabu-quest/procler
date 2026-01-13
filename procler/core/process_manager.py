@@ -359,6 +359,7 @@ class ProcessManager:
                 "success": False,
                 "error": f"Process '{name}' not found",
                 "error_code": "process_not_found",
+                "suggestion": "Use 'procler list' to see available processes, or 'procler define' to create one",
             }
 
         # Check if already running
@@ -446,6 +447,7 @@ class ProcessManager:
                 "success": False,
                 "error": f"Unknown context type: {process.context_type}",
                 "error_code": "invalid_context",
+                "suggestion": "Valid context types are 'local' or 'docker'. Check process definition.",
             }
 
         # Validate Docker context requirements
@@ -593,6 +595,7 @@ class ProcessManager:
                 "success": False,
                 "error": f"Process '{name}' not found",
                 "error_code": "process_not_found",
+                "suggestion": "Use 'procler list' to see available processes, or 'procler define' to create one",
             }
 
         # Check if already stopped
@@ -720,6 +723,7 @@ class ProcessManager:
                 "success": False,
                 "error": f"Process '{name}' not found",
                 "error_code": "process_not_found",
+                "suggestion": "Use 'procler list' to see available processes, or 'procler define' to create one",
             }
 
         # Stop if running
@@ -1009,6 +1013,7 @@ class ProcessManager:
                 "success": False,
                 "error": f"Process '{name}' not found",
                 "error_code": "process_not_found",
+                "suggestion": "Use 'procler list' to see available processes, or 'procler define' to create one",
             }
 
         # Build query for logs
@@ -1157,6 +1162,7 @@ class ProcessManager:
                 "success": False,
                 "error": str(e),
                 "error_code": "invalid_context",
+                "suggestion": "Valid context types are 'local' or 'docker'",
             }
 
         try:
