@@ -131,6 +131,12 @@ def load_config(config_path: Path | None = None) -> ProclerConfig:
         data = yaml.safe_load(f) or {}
 
     config = ProclerConfig.model_validate(data)
+
+    # Warn about suspicious patterns in vars (security check)
+    if config.vars:
+        from ..core.variable_substitution import warn_suspicious_vars
+        warn_suspicious_vars(config.vars)
+
     _config_cache = config
     return config
 
