@@ -96,19 +96,43 @@ class DockerContext(ExecutionContext):
         )
         exec_id = exec_result["Id"]
 
-        # Generate a unique "pid" for tracking
-        import random
+        # Start exec and get stream handle
+        try:
+            output = container.client.api.exec_start(exec_id, stream=True, demux=True)
+        except Exception as e:
+            raise RuntimeError(f"Failed to start exec in container '{container_name}': {e}") from e
 
-        pseudo_pid = random.randint(100000, 999999)
+        def resolve_exec_pid() -> int:
+            """Resolve the real PID for this exec session inside the container."""
+            try:
+                inspect = container.client.api.exec_inspect(exec_id)
+                pid = inspect.get("Pid")
+                if isinstance(pid, int) and pid > 0:
+                    return pid
+            except Exception:
+                return 0
+            return 0
 
-        self._exec_instances[pseudo_pid] = (container, exec_id)
+        exec_pid = resolve_exec_pid()
+        if exec_pid <= 0:
+            # Wait briefly for PID to appear
+            for _ in range(10):
+                await asyncio.sleep(0.1)
+                exec_pid = resolve_exec_pid()
+                if exec_pid > 0:
+                    break
+
+        # Fall back to a pseudo pid if Docker doesn't report one
+        if exec_pid <= 0:
+            import random
+
+            exec_pid = random.randint(100000, 999999)
+
+        self._exec_instances[exec_pid] = (container, exec_id)
 
         # Start streaming output in background
         async def stream_output():
             try:
-                # Start exec and stream output
-                output = container.client.api.exec_start(exec_id, stream=True, demux=True)
-
                 for stdout_chunk, stderr_chunk in output:
                     if stdout_chunk:
                         for line in stdout_chunk.decode("utf-8", errors="replace").splitlines():
@@ -132,13 +156,13 @@ class DockerContext(ExecutionContext):
                 if on_exit:
                     on_exit(-1)
             finally:
-                if pseudo_pid in self._exec_instances:
-                    del self._exec_instances[pseudo_pid]
+                if exec_pid in self._exec_instances:
+                    del self._exec_instances[exec_pid]
 
         # Run in background
         asyncio.create_task(stream_output())
 
-        return ProcessHandle(pid=pseudo_pid, context_type=self.context_type)
+        return ProcessHandle(pid=exec_pid, context_type=self.context_type)
 
     async def stop_process(self, handle: ProcessHandle, timeout: float = 10.0) -> int:
         """
