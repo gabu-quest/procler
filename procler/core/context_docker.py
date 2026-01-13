@@ -1,6 +1,7 @@
 """Docker container execution context using docker-py SDK."""
 
 import asyncio
+import re
 from collections.abc import AsyncIterator, Callable
 
 try:
@@ -13,6 +14,17 @@ except ImportError:
 
 from .context_base import ExecResult, ExecutionContext, ProcessHandle
 
+# Docker container name pattern: alphanumeric, underscore, dash, dot
+# Must start with alphanumeric
+CONTAINER_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
+
+
+def validate_container_name(name: str) -> bool:
+    """Validate container name matches Docker naming rules."""
+    if not name or len(name) > 255:
+        return False
+    return bool(CONTAINER_NAME_PATTERN.match(name))
+
 
 class DockerContext(ExecutionContext):
     """Execute processes inside Docker containers using docker-py SDK."""
@@ -22,6 +34,7 @@ class DockerContext(ExecutionContext):
             raise RuntimeError("Docker SDK not available. Install with: pip install docker")
         self._client = docker.from_env()
         self._exec_instances: dict[int, tuple] = {}  # pid -> (container, exec_id)
+        self._stream_tasks: dict[int, asyncio.Task] = {}  # pid -> stream output task
 
     @property
     def context_type(self) -> str:
@@ -29,6 +42,8 @@ class DockerContext(ExecutionContext):
 
     def _get_container(self, container_name: str):
         """Get a container by name or ID."""
+        if not validate_container_name(container_name):
+            raise ValueError(f"Invalid container name: '{container_name}'")
         try:
             return self._client.containers.get(container_name)
         except NotFound:
@@ -156,11 +171,13 @@ class DockerContext(ExecutionContext):
                 if on_exit:
                     on_exit(-1)
             finally:
-                if exec_pid in self._exec_instances:
-                    del self._exec_instances[exec_pid]
+                # Cleanup exec instance and task tracking
+                self._exec_instances.pop(exec_pid, None)
+                self._stream_tasks.pop(exec_pid, None)
 
-        # Run in background
-        asyncio.create_task(stream_output())
+        # Run in background and track the task
+        task = asyncio.create_task(stream_output())
+        self._stream_tasks[exec_pid] = task
 
         return ProcessHandle(pid=exec_pid, context_type=self.context_type)
 
@@ -172,6 +189,14 @@ class DockerContext(ExecutionContext):
         wait for them to complete or kill the container (which is destructive).
         """
         if handle.pid not in self._exec_instances:
+            # Cleanup any orphaned task
+            task = self._stream_tasks.pop(handle.pid, None)
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
             return 0  # Already done
 
         container, exec_id = self._exec_instances[handle.pid]
@@ -181,7 +206,15 @@ class DockerContext(ExecutionContext):
             inspect = container.client.api.exec_inspect(exec_id)
             if not inspect.get("Running", False):
                 exit_code = inspect.get("ExitCode", 0)
-                del self._exec_instances[handle.pid]
+                self._exec_instances.pop(handle.pid, None)
+                # Cancel stream task
+                task = self._stream_tasks.pop(handle.pid, None)
+                if task and not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
                 return exit_code
         except Exception:
             pass
@@ -194,15 +227,27 @@ class DockerContext(ExecutionContext):
                 inspect = container.client.api.exec_inspect(exec_id)
                 if not inspect.get("Running", False):
                     exit_code = inspect.get("ExitCode", 0)
-                    if handle.pid in self._exec_instances:
-                        del self._exec_instances[handle.pid]
+                    self._exec_instances.pop(handle.pid, None)
+                    task = self._stream_tasks.pop(handle.pid, None)
+                    if task and not task.done():
+                        task.cancel()
+                        try:
+                            await task
+                        except asyncio.CancelledError:
+                            pass
                     return exit_code
             except Exception:
                 break
 
-        # Timeout - process may still be running
-        if handle.pid in self._exec_instances:
-            del self._exec_instances[handle.pid]
+        # Timeout - process may still be running, cleanup anyway
+        self._exec_instances.pop(handle.pid, None)
+        task = self._stream_tasks.pop(handle.pid, None)
+        if task and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
         return -1
 
     async def is_running(self, handle: ProcessHandle) -> bool:

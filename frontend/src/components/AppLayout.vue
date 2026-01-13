@@ -7,18 +7,38 @@
           <span class="logo-text">Procler</span>
         </router-link>
         <n-menu mode="horizontal" :options="menuOptions" :value="activeKey" @update:value="handleMenuClick" />
+        <div class="header-spacer" />
+        <n-tooltip trigger="hover">
+          <template #trigger>
+            <div
+              class="connection-indicator"
+              :class="connectionStatus"
+              role="status"
+              :aria-label="`WebSocket ${connectionStatus}${lastError ? ': ' + lastError : ''}`"
+            >
+              <PhPlugsConnected v-if="connectionStatus === 'connected'" :size="18" weight="fill" />
+              <PhCircleNotch v-else-if="connectionStatus === 'connecting'" :size="18" weight="bold" class="spin" />
+              <PhPlugs v-else :size="18" weight="regular" />
+            </div>
+          </template>
+          <span v-if="connectionStatus === 'connected'">Connected</span>
+          <span v-else-if="connectionStatus === 'connecting'">Connecting{{ reconnectAttempts > 0 ? ` (attempt ${reconnectAttempts})` : '' }}...</span>
+          <span v-else-if="connectionStatus === 'error'">{{ lastError || 'Connection error' }}</span>
+          <span v-else>Disconnected</span>
+        </n-tooltip>
       </div>
     </n-layout-header>
     <n-layout-content class="app-content">
       <slot />
     </n-layout-content>
+    <KeyboardShortcutsHelp />
   </n-layout>
 </template>
 
 <script setup lang="ts">
-import { computed, h } from "vue";
+import { computed, h, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { NLayout, NLayoutHeader, NLayoutContent, NMenu, type MenuOption } from "naive-ui";
+import { NLayout, NLayoutHeader, NLayoutContent, NMenu, NTooltip, type MenuOption } from "naive-ui";
 import {
   PhTerminal,
   PhHouse,
@@ -27,10 +47,26 @@ import {
   PhListChecks,
   PhCodeBlock,
   PhGear,
+  PhPlugsConnected,
+  PhPlugs,
+  PhCircleNotch,
 } from "@phosphor-icons/vue";
+import { useWebSocket } from "@/composables/useWebSocket";
+import { useProcessNotifications } from "@/composables/useProcessNotifications";
+import KeyboardShortcutsHelp from "@/components/KeyboardShortcutsHelp.vue";
 
 const route = useRoute();
 const router = useRouter();
+const { connectionStatus, lastError, reconnectAttempts, connect, subscribeStatus } = useWebSocket();
+
+// Initialize process notifications (watches for status changes)
+useProcessNotifications();
+
+onMounted(() => {
+  connect();
+  // Subscribe to status updates for all processes
+  subscribeStatus();
+});
 
 const activeKey = computed(() => {
   if (route.path === "/") return "dashboard";
@@ -127,5 +163,50 @@ function handleMenuClick(key: string) {
 
 .app-content {
   padding: 1.5rem;
+}
+
+.header-spacer {
+  flex: 1;
+}
+
+.connection-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: default;
+  transition: all 0.2s ease;
+}
+
+.connection-indicator.connected {
+  color: var(--n-success-color);
+}
+
+.connection-indicator.connecting {
+  color: var(--n-warning-color);
+}
+
+.connection-indicator.disconnected,
+.connection-indicator.error {
+  color: var(--n-text-color-3);
+}
+
+.connection-indicator.error {
+  color: var(--n-error-color);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

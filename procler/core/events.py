@@ -1,8 +1,11 @@
 """Event system for broadcasting status and log updates."""
 
 import asyncio
+import logging
 from collections.abc import Callable, Coroutine
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # Type for async event handlers
 EventHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]
@@ -34,8 +37,9 @@ class EventBus:
         for handler in handlers:
             try:
                 await handler(data)
-            except Exception:
-                pass  # Don't let one handler break others
+            except Exception as e:
+                # Log but don't let one handler break others
+                logger.debug(f"Event handler error for {event_type}: {e}")
 
     def emit_sync(self, event_type: str, data: dict[str, Any]) -> None:
         """Emit an event synchronously (creates task if in async context)."""

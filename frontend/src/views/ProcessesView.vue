@@ -12,7 +12,17 @@
 
     <n-spin :show="store.loading">
       <div v-if="store.error" class="error-state">
-        <n-alert type="error" :title="store.error" />
+        <n-alert type="error" :title="store.error">
+          <template #icon>
+            <PhWarningCircle weight="fill" />
+          </template>
+        </n-alert>
+        <n-button type="primary" @click="store.fetchProcesses()" style="margin-top: 1rem">
+          <template #icon>
+            <PhArrowsClockwise />
+          </template>
+          Retry
+        </n-button>
       </div>
 
       <div v-else class="table-shell">
@@ -116,10 +126,11 @@ import {
   NTag,
   NSpace,
   NEmpty,
+  NPopconfirm,
   useMessage,
   type DataTableColumns,
 } from "naive-ui";
-import { PhPlus, PhPlay, PhStop, PhArrowsClockwise, PhTrash, PhEye, PhListBullets, PhCodeBlock } from "@phosphor-icons/vue";
+import { PhPlus, PhPlay, PhStop, PhArrowsClockwise, PhTrash, PhEye, PhListBullets, PhCodeBlock, PhWarningCircle } from "@phosphor-icons/vue";
 import { useProcessStore, type Process } from "@/stores/processes";
 import { useWebSocket } from "@/composables/useWebSocket";
 
@@ -254,14 +265,15 @@ const columns: DataTableColumns<Process> = [
     key: "actions",
     width: 220,
     render: (row) =>
-      h("div", { class: "action-buttons" }, [
+      h("div", { class: "action-buttons", role: "group", "aria-label": `Actions for ${row.name}` }, [
         h(
           NButton,
           {
             size: "small",
             quaternary: true,
             circle: true,
-            title: "View",
+            title: "View details",
+            "aria-label": `View details for ${row.name}`,
             onClick: () => router.push(`/process/${row.name}`),
           },
           { icon: () => h(PhEye, { weight: "regular" }) }
@@ -273,8 +285,10 @@ const columns: DataTableColumns<Process> = [
             quaternary: true,
             type: "success",
             circle: true,
-            title: "Start",
-            disabled: row.status === "running",
+            title: "Start process",
+            "aria-label": `Start ${row.name}`,
+            loading: store.isActionLoading(row.name, "start"),
+            disabled: row.status === "running" || store.isActionLoading(row.name, "start"),
             onClick: () => handleStart(row.name),
           },
           { icon: () => h(PhPlay, { weight: "fill" }) }
@@ -286,8 +300,10 @@ const columns: DataTableColumns<Process> = [
             quaternary: true,
             type: "warning",
             circle: true,
-            title: "Stop",
-            disabled: row.status !== "running",
+            title: "Stop process",
+            "aria-label": `Stop ${row.name}`,
+            loading: store.isActionLoading(row.name, "stop"),
+            disabled: row.status !== "running" || store.isActionLoading(row.name, "stop"),
             onClick: () => handleStop(row.name),
           },
           { icon: () => h(PhStop, { weight: "fill" }) }
@@ -299,22 +315,36 @@ const columns: DataTableColumns<Process> = [
             quaternary: true,
             type: "info",
             circle: true,
-            title: "Restart",
+            title: "Restart process",
+            "aria-label": `Restart ${row.name}`,
+            loading: store.isActionLoading(row.name, "restart"),
+            disabled: store.isActionLoading(row.name, "restart"),
             onClick: () => handleRestart(row.name),
           },
           { icon: () => h(PhArrowsClockwise, { weight: "regular" }) }
         ),
         h(
-          NButton,
+          NPopconfirm,
           {
-            size: "small",
-            quaternary: true,
-            type: "error",
-            circle: true,
-            title: "Remove",
-            onClick: () => handleRemove(row.name),
+            onPositiveClick: () => handleRemove(row.name),
           },
-          { icon: () => h(PhTrash, { weight: "regular" }) }
+          {
+            trigger: () => h(
+              NButton,
+              {
+                size: "small",
+                quaternary: true,
+                type: "error",
+                circle: true,
+                title: "Remove process",
+                "aria-label": `Remove ${row.name}`,
+                loading: store.isActionLoading(row.name, "remove"),
+                disabled: store.isActionLoading(row.name, "remove"),
+              },
+              { icon: () => h(PhTrash, { weight: "regular" }) }
+            ),
+            default: () => `Remove process "${row.name}"?`,
+          }
         ),
       ]),
   },

@@ -74,9 +74,11 @@ procler/
 │   ├── src/
 │   │   ├── views/              # Dashboard, Processes, Groups, Recipes, Snippets, Config
 │   │   ├── stores/             # Pinia state management
+│   │   ├── composables/        # useWebSocket, useKeyboardShortcuts, useProcessNotifications
+│   │   ├── components/         # AppLayout, Breadcrumbs, KeyboardShortcutsHelp
 │   │   └── ...
 │   └── package.json
-└── tests/                      # pytest tests (135 tests)
+└── tests/                      # pytest tests (154 tests)
 ```
 
 ---
@@ -399,6 +401,16 @@ docker run -d -p 8000:8000 -v procler-data:/home/procler/.procler procler
 - **Graceful Shutdown**: SIGTERM/SIGINT triggers orderly process shutdown
 - **Auto Log Rotation**: Background task rotates logs every hour (configurable)
 - **Structured Logging**: Uses loguru with configurable levels and file output
+- **Database Schema Versioning**: Automatic migrations with version tracking
+
+### Security Hardening
+
+- **Command Injection Prevention**: All shell commands use `shlex.quote()` for user inputs
+- **Path Traversal Validation**: Pidfile and log paths are validated to prevent directory traversal
+- **Container Name Validation**: Docker container names are validated against safe patterns
+- **Thread-Safe Process Handles**: `asyncio.Lock()` protects concurrent access to process handles
+- **Resource Cleanup**: Try/finally patterns ensure proper cleanup of subprocesses and streams
+- **Timeout Protection**: Stream readers have configurable timeouts to prevent hangs
 
 ---
 
@@ -409,12 +421,23 @@ The Vue 3 dashboard provides:
 | View | Purpose |
 |------|---------|
 | Dashboard | Overview with stats, quick actions, recent activity |
-| Processes | Process list with CRUD, status indicators |
-| Process Detail | Live logs, controls |
+| Processes | Process list with CRUD, status indicators, per-action loading states |
+| Process Detail | Live logs with search/filter, stream filtering, breadcrumbs navigation |
 | Groups | Card-based view, one-click start/stop all |
 | Recipes | Step preview, dry-run, execution progress |
-| Snippets | Reusable command management |
+| Snippets | Reusable command management with delete confirmations |
 | Config | Status, stats, changelog viewer |
+
+### UX Features
+
+- **Keyboard Shortcuts** - Press `?` to show help. Navigation: `g d` (Dashboard), `g p` (Processes), `g g` (Groups), `g r` (Recipes), `g s` (Snippets), `g c` (Config)
+- **WebSocket Status** - Header shows connection status with reconnect info
+- **Toast Notifications** - Automatic notifications when process status changes
+- **Log Search/Filter** - Filter logs by text (with highlighting) and stream (stdout/stderr)
+- **Breadcrumbs** - Navigation context on detail pages
+- **Confirmations** - Delete/remove actions require confirmation
+- **Loading States** - Per-action loading indicators on buttons
+- **ARIA Labels** - Accessibility support for icon-only buttons
 
 ### Running Frontend
 
@@ -447,7 +470,7 @@ uv sync --all-extras
 # Run CLI
 uv run python -m procler --help
 
-# Run tests (135 tests)
+# Run tests (154 tests)
 uv run pytest tests/ -v
 
 # Dev server

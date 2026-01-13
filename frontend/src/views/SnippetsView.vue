@@ -28,17 +28,33 @@
           <n-card :title="snippet.name" hoverable>
             <template #header-extra>
               <n-space size="small">
-                <n-button size="small" type="primary" @click="handleRun(snippet.name)">
+                <n-button
+                  size="small"
+                  type="primary"
+                  :aria-label="`Run snippet ${snippet.name}`"
+                  @click="handleRun(snippet.name)"
+                >
                   <template #icon>
                     <PhPlay weight="fill" />
                   </template>
                   Run
                 </n-button>
-                <n-button size="small" quaternary type="error" @click="handleRemove(snippet.name)">
-                  <template #icon>
-                    <PhTrash />
+                <n-popconfirm @positive-click="handleRemove(snippet.name)">
+                  <template #trigger>
+                    <n-button
+                      size="small"
+                      quaternary
+                      type="error"
+                      :aria-label="`Delete snippet ${snippet.name}`"
+                      title="Delete snippet"
+                    >
+                      <template #icon>
+                        <PhTrash />
+                      </template>
+                    </n-button>
                   </template>
-                </n-button>
+                  Delete snippet "{{ snippet.name }}"?
+                </n-popconfirm>
               </n-space>
             </template>
 
@@ -131,6 +147,7 @@ import {
   NSpace,
   NDivider,
   NEmpty,
+  NPopconfirm,
   useMessage,
 } from "naive-ui";
 import { PhPlus, PhPlay, PhTrash } from "@phosphor-icons/vue";

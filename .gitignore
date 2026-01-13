@@ -51,3 +51,4 @@ htmlcov/
 # Frontend build (keep built static/ in git for ease of use)
 frontend/node_modules/
 frontend/dist/
+*.tsbuildinfo

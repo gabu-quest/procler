@@ -86,6 +86,7 @@ class GroupManager:
                 "success": False,
                 "error": f"Group '{name}' not found",
                 "error_code": "group_not_found",
+                "suggestion": "Run 'procler group list' to see available groups",
             }
 
         group = config.groups[name]
@@ -100,6 +101,8 @@ class GroupManager:
                         "process": proc_name,
                         "success": False,
                         "error": f"Process '{proc_name}' not defined in config",
+                        "error_code": "process_not_in_config",
+                        "suggestion": "Add process definition to .procler/config.yaml",
                     }
                 )
                 all_success = False
@@ -244,6 +247,7 @@ class GroupManager:
                 "success": False,
                 "error": f"Group '{name}' not found",
                 "error_code": "group_not_found",
+                "suggestion": "Run 'procler group list' to see available groups",
             }
 
         group = config.groups[name]
@@ -259,6 +263,8 @@ class GroupManager:
                         "process": proc_name,
                         "success": False,
                         "error": f"Process '{proc_name}' not defined in config",
+                        "error_code": "process_not_in_config",
+                        "suggestion": "Add process definition to .procler/config.yaml",
                     }
                 )
                 all_success = False
@@ -302,6 +308,7 @@ class GroupManager:
                 "success": False,
                 "error": f"Group '{name}' not found",
                 "error_code": "group_not_found",
+                "suggestion": "Run 'procler group list' to see available groups",
             }
 
         group = config.groups[name]

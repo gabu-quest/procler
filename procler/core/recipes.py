@@ -100,6 +100,7 @@ class RecipeExecutor:
                 "success": False,
                 "error": f"Recipe '{name}' not found",
                 "error_code": "recipe_not_found",
+                "suggestion": "Run 'procler recipe list' to see available recipes",
             }
 
         recipe = config.recipes[name]

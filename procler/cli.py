@@ -177,6 +177,12 @@ CLI_SCHEMA = {
                     "required": False,
                     "description": "Time filter (e.g., '5m', '1h', ISO timestamp)",
                 },
+                {
+                    "name": "--follow/-f",
+                    "required": False,
+                    "default": False,
+                    "description": "Follow log output in real-time (outputs raw text, not JSON)",
+                },
             ],
         },
         "exec": {

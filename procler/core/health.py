@@ -251,8 +251,10 @@ class HealthChecker:
 
     def reset(self) -> None:
         """Reset all health state (for testing)."""
+        # Cancel all tasks - they'll clean up on their own
         for task in self._check_tasks.values():
-            task.cancel()
+            if not task.done():
+                task.cancel()
         self._check_tasks.clear()
         self._health_states.clear()
         self._callbacks.clear()

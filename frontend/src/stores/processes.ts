@@ -40,7 +40,21 @@ export const useProcessStore = defineStore("processes", () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
+  // Per-process action loading states: { processName: { start: bool, stop: bool, restart: bool, remove: bool } }
+  const actionLoading = ref<Record<string, Record<string, boolean>>>({});
+
   const runningCount = computed(() => processes.value.filter((p) => p.status === "running").length);
+
+  function isActionLoading(name: string, action: string): boolean {
+    return actionLoading.value[name]?.[action] ?? false;
+  }
+
+  function setActionLoading(name: string, action: string, isLoading: boolean) {
+    if (!actionLoading.value[name]) {
+      actionLoading.value[name] = {};
+    }
+    actionLoading.value[name][action] = isLoading;
+  }
 
   async function fetchProcesses() {
     loading.value = true;
@@ -80,53 +94,73 @@ export const useProcessStore = defineStore("processes", () => {
   }
 
   async function startProcess(name: string) {
-    const response = await fetch(`/api/processes/${name}/start`, { method: "POST" });
-    const data = await response.json();
-    if (data.success) {
-      await fetchProcesses();
-      if (currentProcess.value?.name === name) {
-        await fetchProcess(name);
+    setActionLoading(name, "start", true);
+    try {
+      const response = await fetch(`/api/processes/${name}/start`, { method: "POST" });
+      const data = await response.json();
+      if (data.success) {
+        await fetchProcesses();
+        if (currentProcess.value?.name === name) {
+          await fetchProcess(name);
+        }
       }
+      return data;
+    } finally {
+      setActionLoading(name, "start", false);
     }
-    return data;
   }
 
   async function stopProcess(name: string) {
-    const response = await fetch(`/api/processes/${name}/stop`, { method: "POST" });
-    const data = await response.json();
-    if (data.success) {
-      await fetchProcesses();
-      if (currentProcess.value?.name === name) {
-        await fetchProcess(name);
+    setActionLoading(name, "stop", true);
+    try {
+      const response = await fetch(`/api/processes/${name}/stop`, { method: "POST" });
+      const data = await response.json();
+      if (data.success) {
+        await fetchProcesses();
+        if (currentProcess.value?.name === name) {
+          await fetchProcess(name);
+        }
       }
+      return data;
+    } finally {
+      setActionLoading(name, "stop", false);
     }
-    return data;
   }
 
   async function restartProcess(name: string, clearLogs = false) {
-    const url = clearLogs
-      ? `/api/processes/${name}/restart?clear_logs=true`
-      : `/api/processes/${name}/restart`;
-    const response = await fetch(url, { method: "POST" });
-    const data = await response.json();
-    if (data.success) {
-      await fetchProcesses();
-      if (currentProcess.value?.name === name) {
-        await fetchProcess(name);
-        // Refresh logs after restart
-        await fetchLogs(name, 200);
+    setActionLoading(name, "restart", true);
+    try {
+      const url = clearLogs
+        ? `/api/processes/${name}/restart?clear_logs=true`
+        : `/api/processes/${name}/restart`;
+      const response = await fetch(url, { method: "POST" });
+      const data = await response.json();
+      if (data.success) {
+        await fetchProcesses();
+        if (currentProcess.value?.name === name) {
+          await fetchProcess(name);
+          // Refresh logs after restart
+          await fetchLogs(name, 200);
+        }
       }
+      return data;
+    } finally {
+      setActionLoading(name, "restart", false);
     }
-    return data;
   }
 
   async function removeProcess(name: string) {
-    const response = await fetch(`/api/processes/${name}`, { method: "DELETE" });
-    const data = await response.json();
-    if (data.success) {
-      await fetchProcesses();
+    setActionLoading(name, "remove", true);
+    try {
+      const response = await fetch(`/api/processes/${name}`, { method: "DELETE" });
+      const data = await response.json();
+      if (data.success) {
+        await fetchProcesses();
+      }
+      return data;
+    } finally {
+      setActionLoading(name, "remove", false);
     }
-    return data;
   }
 
   async function createProcess(process: { name: string; command: string; context?: string; container?: string; cwd?: string; tags?: string }) {
@@ -181,6 +215,7 @@ export const useProcessStore = defineStore("processes", () => {
     loading,
     error,
     runningCount,
+    isActionLoading,
     fetchProcesses,
     fetchProcess,
     startProcess,
