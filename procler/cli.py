@@ -630,6 +630,8 @@ def list_processes(resolve: bool) -> None:
                 "container_name": process.container_name,
                 "cwd": process.cwd,
                 "tags": process.tags or [],
+                "daemon_mode": getattr(process, "daemon_mode", False) or None,
+                "daemon_match_pattern": getattr(process, "daemon_match_pattern", None),
                 "daemon_container": daemon_container,
             }
         )

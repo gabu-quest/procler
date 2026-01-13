@@ -618,11 +618,13 @@ class ProcessManager:
             }
 
     async def _verify_running_status(self, process: Process) -> None:
-        """Verify and update the running status of a process."""
-        if process.status != ProcessStatus.RUNNING.value:
-            return
+        """Verify and update the running status of a process.
 
+        For daemon processes, this also auto-adopts running daemons even if
+        the process is marked as stopped.
+        """
         # Daemon mode: Use daemon detector to find/verify PID
+        # Check daemon status regardless of current status (to auto-adopt)
         if getattr(process, "daemon_mode", False):
             pattern = getattr(process, "daemon_match_pattern", None)
             pidfile = getattr(process, "daemon_pidfile", None)
@@ -640,19 +642,27 @@ class ProcessManager:
                     container=container,
                 )
                 if found_pid:
-                    # Daemon is running, update PID if changed
-                    if process.pid != found_pid:
+                    # Daemon is running - update status and PID
+                    if process.status != ProcessStatus.RUNNING.value or process.pid != found_pid:
+                        process.status = ProcessStatus.RUNNING.value
                         process.pid = found_pid
+                        if not process.started_at:
+                            process.started_at = datetime.now().isoformat()
                         process.save()
                     return
                 else:
                     # Daemon not found - mark as stopped
-                    process.status = ProcessStatus.STOPPED.value
-                    process.pid = None
-                    if process._id in self._handles:
-                        del self._handles[process._id]
-                    process.save()
+                    if process.status == ProcessStatus.RUNNING.value:
+                        process.status = ProcessStatus.STOPPED.value
+                        process.pid = None
+                        if process._id in self._handles:
+                            del self._handles[process._id]
+                        process.save()
                     return
+
+        # Non-daemon: Only verify if currently marked as running
+        if process.status != ProcessStatus.RUNNING.value:
+            return
 
         # Non-daemon mode: Use handle or PID check
         handle = self._handles.get(process._id)
@@ -793,6 +803,10 @@ class ProcessManager:
             "uptime_seconds": process.uptime_seconds,
             "exit_code": process.exit_code,
             "error_message": process.error_message,
+            # Daemon mode fields
+            "daemon_mode": getattr(process, "daemon_mode", False) or None,
+            "daemon_match_pattern": getattr(process, "daemon_match_pattern", None),
+            "daemon_container": getattr(process, "daemon_container", None),
         }
 
         # Add Linux process state if running and we have a PID
