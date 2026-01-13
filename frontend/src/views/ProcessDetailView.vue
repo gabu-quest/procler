@@ -53,7 +53,7 @@
             <n-descriptions :column="1" label-placement="left" bordered>
               <n-descriptions-item label="Name">{{ store.currentProcess.name }}</n-descriptions-item>
               <n-descriptions-item label="Command">
-                <n-code>{{ store.currentProcess.command }}</n-code>
+                <n-code class="command-inline" :code="store.currentProcess.command" />
               </n-descriptions-item>
               <n-descriptions-item label="Context">
                 <n-tag size="small" :type="contextTagType">{{ contextLabel }}</n-tag>
@@ -298,6 +298,20 @@ onUnmounted(() => {
 .error-state,
 .empty-state {
   padding: 1rem 0;
+}
+
+.process-detail :deep(.n-descriptions-item__label) {
+  min-width: 110px;
+  white-space: nowrap;
+}
+
+.command-inline {
+  display: inline-block;
+  max-width: 420px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 .logs-card :deep(.n-card__content) {
