@@ -53,7 +53,9 @@
             <n-descriptions :column="1" label-placement="left" bordered>
               <n-descriptions-item label="Name">{{ store.currentProcess.name }}</n-descriptions-item>
               <n-descriptions-item label="Command">
-                <n-code class="command-inline" :code="store.currentProcess.command" />
+                <n-button text class="command-button" @click="openCommand" :disabled="!commandValue">
+                  <span class="command-text">{{ commandValue }}</span>
+                </n-button>
               </n-descriptions-item>
               <n-descriptions-item label="Context">
                 <n-tag size="small" :type="contextTagType">{{ contextLabel }}</n-tag>
@@ -124,6 +126,13 @@
         </n-empty>
       </div>
     </n-spin>
+
+    <n-modal v-model:show="showCommandModal" preset="card" title="Command" style="max-width: 720px;">
+      <pre class="command-code"><code>{{ commandValue }}</code></pre>
+      <template #footer>
+        <n-button @click="showCommandModal = false">Close</n-button>
+      </template>
+    </n-modal>
   </div>
 </template>
 
@@ -140,7 +149,7 @@ import {
   NTag,
   NSpace,
   NSpin,
-  NCode,
+  NModal,
   NAlert,
   NEmpty,
   useMessage,
@@ -156,6 +165,7 @@ const message = useMessage();
 const { connected, connect, subscribeLogs, unsubscribeLogs, subscribeStatus } = useWebSocket();
 
 const logViewerRef = ref<HTMLElement | null>(null);
+const showCommandModal = ref(false);
 
 const processName = route.params.name as string;
 const contextLabel = computed(() => {
@@ -163,6 +173,12 @@ const contextLabel = computed(() => {
   return process?.context ?? process?.context_type ?? "local";
 });
 const contextTagType = computed(() => (contextLabel.value === "docker" ? "info" : "default"));
+const commandValue = computed(() => store.currentProcess?.command ?? "");
+
+function openCommand() {
+  if (!commandValue.value) return;
+  showCommandModal.value = true;
+}
 
 function statusColor(status: string) {
   switch (status) {
@@ -305,13 +321,34 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.command-inline {
-  display: inline-block;
+.command-button {
+  font-family: var(--n-font-family-mono);
+  font-size: 0.85rem;
   max-width: 420px;
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
   overflow: hidden;
   text-overflow: ellipsis;
-  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.command-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-code {
+  background: var(--n-code-color);
+  border-radius: var(--n-border-radius);
+  border: 1px solid var(--n-border-color);
+  font-family: var(--n-font-family-mono);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .logs-card :deep(.n-card__content) {
