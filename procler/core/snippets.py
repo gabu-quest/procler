@@ -9,6 +9,7 @@ from ..db import init_database
 from ..models import Snippet
 from .context_docker import is_docker_available
 from .context_local import get_local_context
+from .variable_substitution import substitute_vars_from_config
 
 
 class SnippetManager:
@@ -166,6 +167,9 @@ class SnippetManager:
                 "suggestion": "Run 'procler snippet list' to see available snippets",
             }
 
+        # Substitute config vars in command (e.g., ${SIM_CONTAINER})
+        resolved_command = substitute_vars_from_config(snippet.command)
+
         # Validate docker context
         if snippet.context_type == "docker":
             if not snippet.container_name:
@@ -189,7 +193,7 @@ class SnippetManager:
             context = get_docker_context()
             try:
                 result = await context.exec_command(
-                    command=snippet.command,
+                    command=resolved_command,
                     container_name=snippet.container_name,
                 )
             except ValueError as e:
@@ -201,7 +205,7 @@ class SnippetManager:
         else:
             # Local context
             context = get_local_context()
-            result = await context.exec_command(command=snippet.command)
+            result = await context.exec_command(command=resolved_command)
 
         return {
             "success": True,
