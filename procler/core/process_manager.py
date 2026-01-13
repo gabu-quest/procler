@@ -241,8 +241,8 @@ class ProcessManager:
                 context = self._get_context(process.context_type)
                 is_running = await context.is_running(handle)
             elif process.pid:
-                # No handle but we have a PID - check OS directly
-                is_running = self._is_pid_running(process.pid)
+                # No handle but we have a PID - check in the correct context
+                is_running = await self._is_process_pid_running(process)
 
             if is_running:
                 return {
@@ -665,8 +665,9 @@ class ProcessManager:
                 process.save()
                 del self._handles[process._id]
         elif process.pid:
-            # No handle but we have a PID - check OS directly
-            if not self._is_pid_running(process.pid):
+            # No handle but we have a PID - check in the correct context
+            is_running = await self._is_process_pid_running(process)
+            if not is_running:
                 process.status = ProcessStatus.STOPPED.value
                 process.pid = None
                 process.save()
@@ -686,6 +687,20 @@ class ProcessManager:
         except PermissionError:
             # Process exists but we don't have permission to signal it
             return True
+
+    async def _is_process_pid_running(self, process: Process) -> bool:
+        """Check if a process PID is running in its execution context."""
+        if not process.pid:
+            return False
+
+        if process.context_type == "docker":
+            raw_container = getattr(process, "daemon_container", None) or process.container_name
+            container = substitute_vars_from_config(raw_container) if raw_container else None
+            if container:
+                detector = get_daemon_detector()
+                return await detector.is_pid_running(process.pid, container=container)
+
+        return self._is_pid_running(process.pid)
 
     async def _kill_pid(self, pid: int, timeout: float = 10.0) -> int:
         """Kill a process by PID directly (kills entire process group)."""
