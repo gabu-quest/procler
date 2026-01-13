@@ -216,10 +216,28 @@ bash scripts/build_frontend.sh
 The Vue 3 frontend provides a visual interface for managing processes and snippets:
 
 - **Dashboard** - Overview of all processes with real-time status
-- **Process List** - View all defined processes with start/stop/restart controls
-- **Process Detail** - Live log streaming via WebSocket, process info
-- **Snippets** - Save, manage, and run reusable commands
+- **Process List** - View all defined processes with start/stop/restart controls, per-action loading states
+- **Process Detail** - Live log streaming via WebSocket with search/filter and stream filtering
+- **Snippets** - Save, manage, and run reusable commands with confirmations
 - **Groups & Recipes** - Manage process groups and multi-step operations
+
+### Keyboard Shortcuts
+
+Press `?` to view all shortcuts. Quick navigation:
+- `g d` - Dashboard
+- `g p` - Processes
+- `g g` - Groups
+- `g r` - Recipes
+- `g s` - Snippets
+- `g c` - Config
+
+### UX Features
+
+- **Connection Status** - WebSocket indicator in header shows connected/connecting/error states
+- **Toast Notifications** - Automatic notifications when process status changes
+- **Log Search** - Filter logs by text (with match highlighting) or stream (stdout/stderr)
+- **Breadcrumbs** - Navigation context on detail pages
+- **Confirmations** - Destructive actions require confirmation
 
 ### Running the Dashboard
 
