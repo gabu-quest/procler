@@ -12,6 +12,7 @@ Procgler gives developers (and their AI coding assistants) a single pane of glas
 - **Context Abstraction** - Manage local processes and Docker containers uniformly
 - **Snippets** - Save and reuse common commands with tagging
 - **Real-time Updates** - WebSocket support for live status and log streaming
+- **Config Variables** - Define `vars` in config.yaml and reference with `${VAR}`
 
 ## Installation
 
@@ -65,6 +66,23 @@ procler define \
 
 # Execute arbitrary command in container
 procler exec "pip list" --context docker --container api-container
+```
+
+### Variable Substitution
+
+Define vars in `.procler/config.yaml` and reference them in commands and container names:
+
+```yaml
+vars:
+  SIM_CONTAINER: VK_optex-worktree
+  SIM_USER: "1000"
+  SIM_WORKDIR: /home/product
+
+processes:
+  simscip:
+    command: "${SIM_WORKDIR}/bin/simscip"
+    context: docker
+    container: "${SIM_CONTAINER}"
 ```
 
 ### Snippets (Reusable Commands)
