@@ -809,18 +809,66 @@ def restart(name: str, clear_logs: bool) -> None:
 @click.argument("name")
 @click.option("--tail", default=100, help="Number of lines to return")
 @click.option("--since", help="Time filter (e.g., '5m', '1h', ISO timestamp)")
-def logs(name: str, tail: int, since: str | None) -> None:
+@click.option("-f", "--follow", is_flag=True, help="Follow log output (stream new lines)")
+def logs(name: str, tail: int, since: str | None, follow: bool) -> None:
     """Get logs for a process."""
     import asyncio
+    import time
+    from datetime import datetime
 
     from .core import get_process_manager
 
     manager = get_process_manager()
-    result = asyncio.run(manager.logs(name, tail=tail, since=since))
 
-    output_json(result)
+    if not follow:
+        # Standard mode: get logs and exit
+        result = asyncio.run(manager.logs(name, tail=tail, since=since))
+        output_json(result)
+        if not result["success"]:
+            sys.exit(1)
+        return
+
+    # Follow mode: continuously poll for new logs
+    # First, get initial logs
+    result = asyncio.run(manager.logs(name, tail=tail, since=since))
     if not result["success"]:
+        output_json(result)
         sys.exit(1)
+
+    # Print initial logs (raw, not JSON for readability)
+    last_timestamp = None
+    for entry in result.get("data", {}).get("logs", []):
+        ts = entry.get("timestamp", "")
+        stream = entry.get("stream", "stdout")
+        line = entry.get("line", "")
+        prefix = f"[{ts}] " if ts else ""
+        stream_prefix = "[stderr] " if stream == "stderr" else ""
+        click.echo(f"{prefix}{stream_prefix}{line}")
+        last_timestamp = ts
+
+    # Poll for new logs
+    try:
+        while True:
+            time.sleep(1)  # Poll every second
+            # Get logs since last timestamp
+            since_filter = last_timestamp if last_timestamp else None
+            result = asyncio.run(manager.logs(name, tail=1000, since=since_filter))
+            if result["success"]:
+                entries = result.get("data", {}).get("logs", [])
+                for entry in entries:
+                    ts = entry.get("timestamp", "")
+                    # Skip if same or older than last seen
+                    if last_timestamp and ts and ts <= last_timestamp:
+                        continue
+                    stream = entry.get("stream", "stdout")
+                    line = entry.get("line", "")
+                    prefix = f"[{ts}] " if ts else ""
+                    stream_prefix = "[stderr] " if stream == "stderr" else ""
+                    click.echo(f"{prefix}{stream_prefix}{line}")
+                    if ts:
+                        last_timestamp = ts
+    except KeyboardInterrupt:
+        click.echo("\nStopped following logs.")
 
 
 @cli.command("exec")
