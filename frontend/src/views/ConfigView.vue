@@ -1,7 +1,10 @@
 <template>
   <div class="config-view">
     <div class="page-header">
-      <h1>Config</h1>
+      <div class="header-title">
+        <img src="/procler.png" alt="Procler logo" class="config-logo" />
+        <h1>Config</h1>
+      </div>
       <n-button type="primary" @click="handleReload" :loading="store.loading">
         <template #icon>
           <PhArrowsClockwise />
@@ -294,6 +297,20 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.config-logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  opacity: 0.75;
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.25);
 }
 
 .page-header h1 {

@@ -21,6 +21,9 @@ from .variable_substitution import substitute_vars_from_config
 # Default max log entries per process
 DEFAULT_MAX_LOGS = 10000
 
+# Default log directory (inside container for docker, on host for local)
+DEFAULT_LOG_DIR = "/tmp/procler"
+
 # Linux process state descriptions
 LINUX_PROCESS_STATES = {
     "R": {"name": "running", "description": "Running or runnable (on run queue)"},
@@ -130,6 +133,88 @@ def parse_duration(duration: str) -> int:
         return int(duration)
     except ValueError:
         raise ValueError(f"Invalid duration format: {duration}")
+
+
+def get_log_file_path(process_name: str) -> str:
+    """Get the default log file path for a process."""
+    # Sanitize process name for filename (replace unsafe chars)
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in process_name)
+    return f"{DEFAULT_LOG_DIR}/{safe_name}.log"
+
+
+def extract_docker_exec_user(command: str) -> str | None:
+    """Extract the -u/--user value from a docker exec command."""
+    import re
+
+    # Match -u <user> or --user <user> or --user=<user>
+    match = re.search(r"(?:-u|--user)[=\s]+([^\s]+)", command)
+    return match.group(1) if match else None
+
+
+def ensure_log_dir_in_container(container: str, user: str | None = None) -> None:
+    """Ensure log directory exists inside a Docker container.
+
+    If user is provided, creates directory as that user so they can write to it.
+    """
+    import subprocess
+
+    try:
+        cmd = ["docker", "exec"]
+        if user:
+            cmd.extend(["-u", user])
+        cmd.extend([container, "mkdir", "-p", DEFAULT_LOG_DIR])
+        subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError:
+        pass  # Best effort - directory might already exist or container might be unavailable
+
+
+def ensure_local_log_dir() -> None:
+    """Ensure log directory exists on local filesystem."""
+    Path(DEFAULT_LOG_DIR).mkdir(parents=True, exist_ok=True)
+
+
+async def read_log_file_from_container(container: str, log_path: str, tail: int = 100) -> list[str]:
+    """Read log file from inside a Docker container."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["docker", "exec", container, "tail", "-n", str(tail), log_path],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode == 0:
+            return result.stdout.splitlines()
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        pass
+    return []
+
+
+def wrap_command_with_log_redirect(command: str, log_path: str) -> str:
+    """Wrap a command to redirect stdout/stderr to a log file.
+
+    For bash -c commands, we inject the redirect inside the quoted command.
+    For other commands, we append the redirect.
+    """
+    # Check if this is a bash -c "..." pattern
+    if 'bash -c "' in command or "bash -c '" in command:
+        # Find the inner command and add redirect there
+        # Pattern: ... bash -c "inner_command"
+        import re
+
+        # Match bash -c followed by quoted string
+        match = re.search(r'(bash -c ["\'])(.+?)(["\'])(\s*)$', command)
+        if match:
+            prefix = command[: match.start()] + match.group(1)
+            inner_cmd = match.group(2)
+            quote = match.group(3)
+            suffix = match.group(4)
+            # Add redirect to inner command (truncate on start with >)
+            return f"{prefix}{inner_cmd} > {log_path} 2>&1{quote}{suffix}"
+
+    # For simple commands, just append redirect
+    return f"{command} > {log_path} 2>&1"
 
 
 class ProcessManager:
@@ -329,6 +414,28 @@ class ProcessManager:
         try:
             # Substitute config vars in command (e.g., ${SIM_CONTAINER})
             resolved_command = substitute_vars_from_config(process.command)
+
+            # Set up log file for daemon processes
+            log_file_path = None
+            if getattr(process, "daemon_mode", False):
+                log_file_path = getattr(process, "log_file", None) or get_log_file_path(process.name)
+                # Get container for log directory creation
+                raw_daemon_container = getattr(process, "daemon_container", None)
+                daemon_container = substitute_vars_from_config(raw_daemon_container) if raw_daemon_container else None
+
+                # Ensure log directory exists (as the user who will run the process)
+                if daemon_container:
+                    # Extract user from docker exec command (e.g., -u 1000)
+                    exec_user = extract_docker_exec_user(resolved_command)
+                    ensure_log_dir_in_container(daemon_container, user=exec_user)
+                else:
+                    ensure_local_log_dir()
+
+                # Wrap command to redirect output to log file
+                resolved_command = wrap_command_with_log_redirect(resolved_command, log_file_path)
+
+                # Store log file path
+                process.log_file = log_file_path
 
             # Start the process (Docker context needs container_name)
             if process.context_type == "docker":
@@ -807,6 +914,7 @@ class ProcessManager:
             "daemon_mode": getattr(process, "daemon_mode", False) or None,
             "daemon_match_pattern": getattr(process, "daemon_match_pattern", None),
             "daemon_container": getattr(process, "daemon_container", None),
+            "log_file": getattr(process, "log_file", None),
         }
 
         # Add Linux process state if running and we have a PID
@@ -887,12 +995,53 @@ class ProcessManager:
             for entry in logs_subset
         ]
 
+        # For daemon processes with log_file, prefer file over database
+        # (database may have stale entries from previous runs)
+        log_source = "database"
+        log_file = getattr(process, "log_file", None)
+        is_daemon = getattr(process, "daemon_mode", False)
+
+        # Try log file for daemon processes or when database is empty
+        if log_file and (is_daemon or not log_entries):
+            # Determine if we need to read from container
+            raw_daemon_container = getattr(process, "daemon_container", None)
+            daemon_container = substitute_vars_from_config(raw_daemon_container) if raw_daemon_container else None
+
+            if daemon_container:
+                # Read from log file inside container
+                lines = await read_log_file_from_container(daemon_container, log_file, tail)
+            else:
+                # Read from local log file
+                try:
+                    log_path = Path(log_file)
+                    if log_path.exists():
+                        with open(log_path) as f:
+                            all_lines = f.readlines()
+                            lines = [line.rstrip("\n") for line in all_lines[-tail:]]
+                    else:
+                        lines = []
+                except OSError:
+                    lines = []
+
+            if lines:
+                log_source = "file"
+                log_entries = [
+                    {
+                        "timestamp": None,
+                        "stream": "stdout",
+                        "line": line,
+                    }
+                    for line in lines
+                ]
+
         return {
             "success": True,
             "data": {
                 "process": name,
                 "logs": log_entries,
                 "count": len(log_entries),
+                "source": log_source,
+                "log_file": log_file,
             },
         }
 

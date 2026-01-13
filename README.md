@@ -1,8 +1,10 @@
-# Procgler
+# Procler
+
+<img src="frontend/public/procler.png" alt="Procler logo" width="48" height="48" />
 
 **A process manager where Claude Code is a first-class citizen.**
 
-Procgler gives developers (and their AI coding assistants) a single pane of glass for managing the chaos of modern development environments - where processes span local shells, Docker containers, and various execution contexts.
+Procler gives developers (and their AI coding assistants) a single pane of glass for managing the chaos of modern development environments - where processes span local shells, Docker containers, and various execution contexts.
 
 ## Features
 
@@ -232,7 +234,7 @@ Open http://localhost:8000 to access the dashboard.
 
 ## Claude Code Integration
 
-Procgler is designed for seamless AI assistant integration:
+Procler is designed for seamless AI assistant integration:
 
 ```
 Human: "My auth-api seems slow, check its recent logs and restart it if there are errors"

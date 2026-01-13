@@ -1,10 +1,10 @@
-# PROCGLER - Project Roadmap
+# PROCLER - Project Roadmap
 
 ## North Star
 
 **A process manager where Claude Code is a first-class citizen.**
 
-Procgler exists to give developers (and their AI coding assistants) a single pane of glass for managing the chaos of modern development environments - where processes span local shells, Docker containers, and various execution contexts.
+Procler exists to give developers (and their AI coding assistants) a single pane of glass for managing the chaos of modern development environments - where processes span local shells, Docker containers, and various execution contexts.
 
 ---
 
@@ -21,7 +21,7 @@ Developers running multiple services face daily friction:
 - Useful command snippets lost in shell history
 
 ### The Solution
-Procgler provides:
+Procler provides:
 1. **Web Dashboard** - Visual monitoring, log viewing, one-click control
 2. **LLM-First CLI** - JSON-native commands designed for Claude Code integration
 
@@ -173,20 +173,20 @@ All commands output JSON to stdout. Exit code 0 on success, non-zero on failure.
 
 ### Discovery
 ```bash
-procgler capabilities          # Returns JSON schema of all commands
+procler capabilities          # Returns JSON schema of all commands
 ```
 
 ### Process Control
 ```bash
-procgler status [NAME]         # All processes or specific one
-procgler start <NAME>          # Start (idempotent - no-op if running)
-procgler stop <NAME>           # Stop (idempotent - no-op if stopped)
-procgler restart <NAME>        # Stop then start
+procler status [NAME]         # All processes or specific one
+procler start <NAME>          # Start (idempotent - no-op if running)
+procler stop <NAME>           # Stop (idempotent - no-op if stopped)
+procler restart <NAME>        # Stop then start
 ```
 
 ### Process Definitions
 ```bash
-procgler define \
+procler define \
   --name <NAME> \
   --command <CMD> \
   --context <local|docker> \
@@ -195,20 +195,20 @@ procgler define \
   --display-name <DISPLAY> \
   --tags <TAG1,TAG2>
 
-procgler remove <NAME>
-procgler list                   # List all definitions
+procler remove <NAME>
+procler list                   # List all definitions
 ```
 
 ### Logs
 ```bash
-procgler logs <NAME> \
+procler logs <NAME> \
   --tail <N> \                  # Last N lines (default: 100)
   --since <DURATION>            # e.g., "5m", "1h", ISO timestamp
 ```
 
 ### Arbitrary Execution
 ```bash
-procgler exec <COMMAND> \
+procler exec <COMMAND> \
   --context <local|docker> \
   --container <CONTAINER> \
   --cwd <PATH>
@@ -216,21 +216,21 @@ procgler exec <COMMAND> \
 
 ### Snippets
 ```bash
-procgler snippet list [--tag TAG]
-procgler snippet save \
+procler snippet list [--tag TAG]
+procler snippet save \
   --name <NAME> \
   --command <CMD> \
   --description <DESC> \
   --context <local|docker> \
   --container <CONTAINER> \
   --tags <TAG1,TAG2>
-procgler snippet run <NAME>
-procgler snippet remove <NAME>
+procler snippet run <NAME>
+procler snippet remove <NAME>
 ```
 
 ### Example JSON Output
 ```json
-// procgler status
+// procler status
 {
   "success": true,
   "data": {
@@ -249,7 +249,7 @@ procgler snippet remove <NAME>
   }
 }
 
-// procgler start auth-api (already running)
+// procler start auth-api (already running)
 {
   "success": true,
   "data": {
@@ -273,12 +273,12 @@ procgler snippet remove <NAME>
 ## Project Structure
 
 ```
-procgler/
+procler/
 ├── pyproject.toml
 ├── README.md
-├── procgler/
+├── procler/
 │   ├── __init__.py
-│   ├── __main__.py              # python -m procgler entrypoint
+│   ├── __main__.py              # python -m procler entrypoint
 │   ├── cli.py                   # Click CLI definitions
 │   ├── config.py                # Settings, paths, defaults
 │   ├── db.py                    # sqler setup and migrations
@@ -356,15 +356,15 @@ procgler/
 - [ ] Implement db.py with sqler table creation
 - [ ] Create models.py with dataclasses
 - [ ] Basic config.py (db path, defaults)
-- [ ] CLI skeleton with `procgler capabilities` command
-- [ ] `procgler --version`
+- [ ] CLI skeleton with `procler capabilities` command
+- [ ] `procler --version`
 
 **Acceptance Criteria:**
 ```bash
-python -m procgler capabilities
+python -m procler capabilities
 # Returns valid JSON schema
 
-python -m procgler --version
+python -m procler --version
 # Returns version string
 ```
 
@@ -383,19 +383,19 @@ python -m procgler --version
 **Acceptance Criteria:**
 ```bash
 # Define a process
-procgler define --name test-server --command "python -m http.server 8888"
+procler define --name test-server --command "python -m http.server 8888"
 # {"success": true, "action": "created", "name": "test-server"}
 
 # Start it
-procgler start test-server
+procler start test-server
 # {"success": true, "data": {"status": "started", "pid": 12345}}
 
 # Check status
-procgler status test-server
+procler status test-server
 # {"success": true, "data": {"process": {"status": "running", ...}}}
 
 # Stop it
-procgler stop test-server
+procler stop test-server
 # {"success": true, "data": {"status": "stopped"}}
 ```
 
@@ -411,10 +411,10 @@ procgler stop test-server
 
 **Acceptance Criteria:**
 ```bash
-procgler logs test-server --tail 50
+procler logs test-server --tail 50
 # {"success": true, "logs": [...], "count": 50}
 
-procgler exec "ls -la" --cwd /tmp
+procler exec "ls -la" --cwd /tmp
 # {"success": true, "data": {"stdout": "...", "exit_code": 0}}
 ```
 
@@ -431,17 +431,17 @@ procgler exec "ls -la" --cwd /tmp
 
 **Acceptance Criteria:**
 ```bash
-procgler define \
+procler define \
   --name db-migrate \
   --command "alembic upgrade head" \
   --context docker \
   --container api-container
 # {"success": true, ...}
 
-procgler start db-migrate
+procler start db-migrate
 # Executes inside container
 
-procgler exec "pip list" --context docker --container api-container
+procler exec "pip list" --context docker --container api-container
 # {"success": true, "data": {"stdout": "..."}}
 ```
 
@@ -457,15 +457,15 @@ procgler exec "pip list" --context docker --container api-container
 
 **Acceptance Criteria:**
 ```bash
-procgler snippet save \
+procler snippet save \
   --name rebuild-api \
   --command "docker compose build api" \
   --tags docker,build
 
-procgler snippet list --tag docker
+procler snippet list --tag docker
 # {"success": true, "snippets": [...]}
 
-procgler snippet run rebuild-api
+procler snippet run rebuild-api
 # Executes command, returns result
 ```
 
@@ -597,7 +597,7 @@ curl -X POST http://localhost:8000/api/processes/test-server/start
 - [ ] CORS configuration for dev vs prod
 - [ ] Error handling improvements
 - [ ] Loading states throughout UI
-- [ ] procgler serve command to start server
+- [ ] procler serve command to start server
 - [ ] README with installation and usage
 - [ ] Basic test coverage
 
@@ -605,11 +605,11 @@ curl -X POST http://localhost:8000/api/processes/test-server/start
 ```bash
 # Development
 cd frontend && npm run dev    # Vite dev server
-procgler serve --reload       # FastAPI with hot reload
+procler serve --reload       # FastAPI with hot reload
 
 # Production
 ./scripts/build_frontend.sh   # Build Vue to static/
-procgler serve                # Serves everything
+procler serve                # Serves everything
 ```
 
 ---
@@ -624,18 +624,18 @@ procgler serve                # Serves everything
 - [ ] Set up GitHub Actions for automated publishing
 - [ ] Configure trusted publishing with PyPI
 - [ ] Publish initial release to PyPI
-- [ ] Verify `pip install procgler` works
+- [ ] Verify `pip install procler` works
 
 **Acceptance Criteria:**
 ```bash
 # Installation from PyPI
-pip install procgler
+pip install procler
 
 # Verify installation
-procgler --version
-# procgler, version 0.1.0
+procler --version
+# procler, version 0.1.0
 
-procgler capabilities
+procler capabilities
 # Returns JSON schema
 ```
 
@@ -655,7 +655,7 @@ python -m twine upload dist/*
 ### pyproject.toml
 ```toml
 [project]
-name = "procgler"
+name = "procler"
 version = "0.1.0"
 description = "LLM-first process manager for developers"
 requires-python = ">=3.12"
@@ -669,7 +669,7 @@ dependencies = [
 ]
 
 [project.scripts]
-procgler = "procgler.cli:cli"
+procler = "procler.cli:cli"
 
 [project.optional-dependencies]
 dev = [
@@ -683,7 +683,7 @@ dev = [
 ### frontend/package.json
 ```json
 {
-  "name": "procgler-frontend",
+  "name": "procler-frontend",
   "version": "0.1.0",
   "scripts": {
     "dev": "vite",
@@ -723,10 +723,10 @@ dev = [
 Human: "My auth-api seems slow, check its recent logs and restart it if there are errors"
 
 Claude Code:
-1. procgler logs auth-api --tail 100
+1. procler logs auth-api --tail 100
 2. [Analyzes JSON log output]
-3. procgler restart auth-api
-4. procgler status auth-api
+3. procler restart auth-api
+4. procler status auth-api
 5. Reports back to human
 ```
 

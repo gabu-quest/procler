@@ -380,7 +380,7 @@ def _process_to_dict(process) -> dict[str, Any]:
 @click.group()
 @click.version_option(version=__version__, prog_name="procler")
 def cli() -> None:
-    """Procgler - LLM-first process manager for developers.
+    """Procler - LLM-first process manager for developers.
 
     All commands output JSON for easy parsing by scripts and LLMs.
     """

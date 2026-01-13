@@ -1,4 +1,4 @@
-"""Data models for Procgler using sqler."""
+"""Data models for Procler using sqler."""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -56,6 +56,9 @@ class Process(SQLerModel):
     daemon_pidfile: str | None = None
     daemon_container: str | None = None  # Container for daemon detection
     adopt_existing: bool = False
+
+    # Log file for capturing output (used when process started via CLI or adopted)
+    log_file: str | None = None  # Default: /tmp/procler/{name}.log
 
     # Runtime state (stored with the process)
     status: str = "stopped"

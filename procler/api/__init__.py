@@ -1,4 +1,4 @@
-"""FastAPI application for Procgler."""
+"""FastAPI application for Procler."""
 
 from .app import app, create_app
 
