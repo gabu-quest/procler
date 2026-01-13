@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 from ..config import HealthCheckDef
 from .context_local import get_local_context
@@ -14,6 +15,7 @@ from .context_local import get_local_context
 
 class HealthStatus(str, Enum):
     """Health check status."""
+
     UNKNOWN = "unknown"  # Never checked
     STARTING = "starting"  # In start_period grace window
     HEALTHY = "healthy"  # Passing health checks
@@ -24,6 +26,7 @@ class HealthStatus(str, Enum):
 @dataclass
 class HealthState:
     """Current health state for a process."""
+
     status: HealthStatus
     last_check: datetime | None = None
     consecutive_failures: int = 0
@@ -47,10 +50,7 @@ class HealthChecker:
 
     def get_health(self, process_name: str) -> HealthState:
         """Get current health state for a process."""
-        return self._health_states.get(
-            process_name,
-            HealthState(status=HealthStatus.UNKNOWN)
-        )
+        return self._health_states.get(process_name, HealthState(status=HealthStatus.UNKNOWN))
 
     def register_process(
         self,
@@ -93,9 +93,7 @@ class HealthChecker:
                 pass
 
         # Start new check task
-        self._check_tasks[process_name] = asyncio.create_task(
-            self._health_check_loop(process_name, healthcheck)
-        )
+        self._check_tasks[process_name] = asyncio.create_task(self._health_check_loop(process_name, healthcheck))
 
     async def stop_checking(self, process_name: str) -> None:
         """Stop health checking for a process."""
@@ -116,7 +114,6 @@ class HealthChecker:
         healthcheck: HealthCheckDef,
     ) -> None:
         """Main health check loop for a process."""
-        start_time = datetime.now()
         start_period = healthcheck.get_start_period_seconds()
         interval = healthcheck.get_interval_seconds()
         timeout = healthcheck.get_timeout_seconds()

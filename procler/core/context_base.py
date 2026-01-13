@@ -1,8 +1,8 @@
 """Abstract base class for execution contexts."""
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
-from typing import AsyncIterator, Callable
 
 
 @dataclass

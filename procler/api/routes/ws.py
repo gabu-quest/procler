@@ -1,6 +1,5 @@
 """WebSocket handler for real-time updates."""
 
-import asyncio
 import json
 from typing import Any
 
@@ -214,7 +213,11 @@ async def websocket_endpoint(websocket: WebSocket):
                     manager.subscribe_logs(websocket, process_id)
                     await manager.send_personal(
                         websocket,
-                        {"type": "subscribed", "action": "subscribe_logs", "process_id": process_id},
+                        {
+                            "type": "subscribed",
+                            "action": "subscribe_logs",
+                            "process_id": process_id,
+                        },
                     )
 
             elif action == "unsubscribe_logs":
@@ -227,7 +230,11 @@ async def websocket_endpoint(websocket: WebSocket):
                     manager.unsubscribe_logs(websocket, process_id)
                     await manager.send_personal(
                         websocket,
-                        {"type": "unsubscribed", "action": "unsubscribe_logs", "process_id": process_id},
+                        {
+                            "type": "unsubscribed",
+                            "action": "unsubscribe_logs",
+                            "process_id": process_id,
+                        },
                     )
 
             elif action == "subscribe_status":

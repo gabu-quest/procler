@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 from click.testing import CliRunner
 
 from procler.cli import cli
-from procler.core.context_docker import DOCKER_AVAILABLE
 
 
 def test_docker_define_with_container():
@@ -17,10 +16,14 @@ def test_docker_define_with_container():
         cli,
         [
             "define",
-            "--name", "docker-proc",
-            "--command", "echo hello",
-            "--context", "docker",
-            "--container", "my-container",
+            "--name",
+            "docker-proc",
+            "--command",
+            "echo hello",
+            "--context",
+            "docker",
+            "--container",
+            "my-container",
         ],
     )
     assert result.exit_code == 0
@@ -39,9 +42,12 @@ def test_docker_define_missing_container():
         cli,
         [
             "define",
-            "--name", "docker-proc",
-            "--command", "echo hello",
-            "--context", "docker",
+            "--name",
+            "docker-proc",
+            "--command",
+            "echo hello",
+            "--context",
+            "docker",
             # Missing --container
         ],
     )
@@ -63,8 +69,10 @@ def test_docker_start_without_container_name():
         cli,
         [
             "define",
-            "--name", "local-proc",
-            "--command", "echo hello",
+            "--name",
+            "local-proc",
+            "--command",
+            "echo hello",
         ],
     )
 

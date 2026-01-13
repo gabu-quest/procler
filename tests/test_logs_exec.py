@@ -1,6 +1,5 @@
 """Tests for logs and exec commands (Phase 3)."""
 
-import asyncio
 import json
 import time
 
@@ -34,9 +33,10 @@ def test_logs_empty():
 
 async def test_logs_with_output():
     """Test getting logs for a process that has generated output."""
+    from datetime import datetime
+
     from procler.db import init_database
     from procler.models import Process
-    from datetime import datetime
 
     init_database()
 
@@ -71,9 +71,10 @@ async def test_logs_with_output():
 
 async def test_logs_with_tail():
     """Test getting logs with --tail option."""
+    from datetime import datetime
+
     from procler.db import init_database
     from procler.models import Process
-    from datetime import datetime
 
     init_database()
 
@@ -207,9 +208,10 @@ def test_exec_docker_missing_container():
 
 async def test_log_rotation():
     """Test log rotation functionality."""
+    from datetime import datetime
+
     from procler.db import init_database
     from procler.models import Process
-    from datetime import datetime
 
     init_database()
 
@@ -249,9 +251,10 @@ async def test_log_rotation():
 
 async def test_cleanup_all_logs():
     """Test cleanup_all_logs functionality."""
+    from datetime import datetime
+
     from procler.db import init_database
     from procler.models import Process
-    from datetime import datetime
 
     init_database()
 

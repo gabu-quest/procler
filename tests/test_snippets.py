@@ -28,10 +28,14 @@ def test_snippet_save():
     result = runner.invoke(
         cli,
         [
-            "snippet", "save",
-            "--name", "hello-world",
-            "--command", "echo hello",
-            "--description", "Prints hello",
+            "snippet",
+            "save",
+            "--name",
+            "hello-world",
+            "--command",
+            "echo hello",
+            "--description",
+            "Prints hello",
         ],
     )
     assert result.exit_code == 0
@@ -51,10 +55,14 @@ def test_snippet_save_with_tags():
     result = runner.invoke(
         cli,
         [
-            "snippet", "save",
-            "--name", "build-api",
-            "--command", "docker compose build api",
-            "--tags", "docker,build,api",
+            "snippet",
+            "save",
+            "--name",
+            "build-api",
+            "--command",
+            "docker compose build api",
+            "--tags",
+            "docker,build,api",
         ],
     )
     assert result.exit_code == 0
@@ -72,17 +80,23 @@ def test_snippet_list_with_snippets():
     runner.invoke(
         cli,
         [
-            "snippet", "save",
-            "--name", "snippet1",
-            "--command", "echo 1",
+            "snippet",
+            "save",
+            "--name",
+            "snippet1",
+            "--command",
+            "echo 1",
         ],
     )
     runner.invoke(
         cli,
         [
-            "snippet", "save",
-            "--name", "snippet2",
-            "--command", "echo 2",
+            "snippet",
+            "save",
+            "--name",
+            "snippet2",
+            "--command",
+            "echo 2",
         ],
     )
 
@@ -106,28 +120,40 @@ def test_snippet_list_with_tag_filter():
     runner.invoke(
         cli,
         [
-            "snippet", "save",
-            "--name", "docker-build",
-            "--command", "docker build .",
-            "--tags", "docker,build",
+            "snippet",
+            "save",
+            "--name",
+            "docker-build",
+            "--command",
+            "docker build .",
+            "--tags",
+            "docker,build",
         ],
     )
     runner.invoke(
         cli,
         [
-            "snippet", "save",
-            "--name", "npm-install",
-            "--command", "npm install",
-            "--tags", "npm,build",
+            "snippet",
+            "save",
+            "--name",
+            "npm-install",
+            "--command",
+            "npm install",
+            "--tags",
+            "npm,build",
         ],
     )
     runner.invoke(
         cli,
         [
-            "snippet", "save",
-            "--name", "docker-compose",
-            "--command", "docker compose up",
-            "--tags", "docker",
+            "snippet",
+            "save",
+            "--name",
+            "docker-compose",
+            "--command",
+            "docker compose up",
+            "--tags",
+            "docker",
         ],
     )
 
@@ -160,9 +186,12 @@ def test_snippet_run():
     runner.invoke(
         cli,
         [
-            "snippet", "save",
-            "--name", "test-echo",
-            "--command", "echo hello world",
+            "snippet",
+            "save",
+            "--name",
+            "test-echo",
+            "--command",
+            "echo hello world",
         ],
     )
 
@@ -197,9 +226,12 @@ def test_snippet_remove():
     runner.invoke(
         cli,
         [
-            "snippet", "save",
-            "--name", "to-remove",
-            "--command", "echo test",
+            "snippet",
+            "save",
+            "--name",
+            "to-remove",
+            "--command",
+            "echo test",
         ],
     )
 
@@ -241,9 +273,12 @@ def test_snippet_save_duplicate():
     runner.invoke(
         cli,
         [
-            "snippet", "save",
-            "--name", "duplicate",
-            "--command", "echo test",
+            "snippet",
+            "save",
+            "--name",
+            "duplicate",
+            "--command",
+            "echo test",
         ],
     )
 
@@ -251,9 +286,12 @@ def test_snippet_save_duplicate():
     result = runner.invoke(
         cli,
         [
-            "snippet", "save",
-            "--name", "duplicate",
-            "--command", "echo different",
+            "snippet",
+            "save",
+            "--name",
+            "duplicate",
+            "--command",
+            "echo different",
         ],
     )
     assert result.exit_code == 1
@@ -270,10 +308,14 @@ def test_snippet_docker_missing_container():
     result = runner.invoke(
         cli,
         [
-            "snippet", "save",
-            "--name", "docker-test",
-            "--command", "ls",
-            "--context", "docker",
+            "snippet",
+            "save",
+            "--name",
+            "docker-test",
+            "--command",
+            "ls",
+            "--context",
+            "docker",
             # Missing --container
         ],
     )
@@ -291,11 +333,16 @@ def test_snippet_docker_with_container():
     result = runner.invoke(
         cli,
         [
-            "snippet", "save",
-            "--name", "docker-test",
-            "--command", "ls -la",
-            "--context", "docker",
-            "--container", "my-container",
+            "snippet",
+            "save",
+            "--name",
+            "docker-test",
+            "--command",
+            "ls -la",
+            "--context",
+            "docker",
+            "--container",
+            "my-container",
         ],
     )
     assert result.exit_code == 0

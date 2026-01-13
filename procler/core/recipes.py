@@ -7,18 +7,18 @@ import time
 from typing import Any
 
 from ..config import (
-    get_config,
-    append_changelog,
     ChangelogAction,
+    OnErrorAction,
     RecipeDef,
-    RecipeStepStart,
-    RecipeStepStop,
-    RecipeStepRestart,
+    RecipeStepExec,
     RecipeStepGroupStart,
     RecipeStepGroupStop,
+    RecipeStepRestart,
+    RecipeStepStart,
+    RecipeStepStop,
     RecipeStepWait,
-    RecipeStepExec,
-    OnErrorAction,
+    append_changelog,
+    get_config,
 )
 from . import get_process_manager
 from .groups import get_group_manager
@@ -37,12 +37,14 @@ class RecipeExecutor:
 
         recipes_data = []
         for name, recipe in config.recipes.items():
-            recipes_data.append({
-                "name": name,
-                "description": recipe.description,
-                "steps_count": len(recipe.steps),
-                "on_error": recipe.on_error.value,
-            })
+            recipes_data.append(
+                {
+                    "name": name,
+                    "description": recipe.description,
+                    "steps_count": len(recipe.steps),
+                    "on_error": recipe.on_error.value,
+                }
+            )
 
         return {
             "success": True,
@@ -160,10 +162,12 @@ class RecipeExecutor:
         planned_steps = []
 
         for i, step in enumerate(steps):
-            planned_steps.append({
-                "step": i + 1,
-                "action": self._describe_step(step),
-            })
+            planned_steps.append(
+                {
+                    "step": i + 1,
+                    "action": self._describe_step(step),
+                }
+            )
 
         return {
             "success": True,

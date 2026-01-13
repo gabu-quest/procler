@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -101,16 +100,11 @@ class DaemonDetector:
             attempts += 1
             pid = await self._find_by_pattern(pattern, container, user)
             if pid:
-                logger.debug(
-                    f"Found forked daemon PID {pid} after {attempts} attempts"
-                )
+                logger.debug(f"Found forked daemon PID {pid} after {attempts} attempts")
                 return pid
             await asyncio.sleep(poll_interval)
 
-        logger.warning(
-            f"Daemon with pattern '{pattern}' not found after {timeout}s "
-            f"({attempts} attempts)"
-        )
+        logger.warning(f"Daemon with pattern '{pattern}' not found after {timeout}s " f"({attempts} attempts)")
         return None
 
     async def is_pid_running(
@@ -255,10 +249,7 @@ class DaemonDetector:
         safe_pattern = self._make_grep_pattern(pattern)
 
         if container:
-            cmd = (
-                f"docker exec -u {user or 1000} {container} "
-                f"bash -c \"ps aux | grep '{safe_pattern}'\""
-            )
+            cmd = f"docker exec -u {user or 1000} {container} " f"bash -c \"ps aux | grep '{safe_pattern}'\""
         else:
             cmd = f"ps aux | grep '{safe_pattern}'"
 

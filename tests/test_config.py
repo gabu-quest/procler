@@ -1,24 +1,20 @@
 """Tests for configuration loading and validation."""
 
 import pytest
-from pathlib import Path
 
 from procler.config import (
-    load_config,
-    get_config,
-    reload_config,
-    generate_template_config,
-    find_config_dir,
-    get_config_file_path,
-    ProclerConfig,
-    ProcessDef,
-    GroupDef,
-    RecipeDef,
-    SnippetDef,
-    HealthCheckDef,
+    ContextType,
     DependencyCondition,
     DependencyDef,
-    ContextType,
+    GroupDef,
+    HealthCheckDef,
+    ProcessDef,
+    SnippetDef,
+    find_config_dir,
+    generate_template_config,
+    get_config,
+    load_config,
+    reload_config,
 )
 from procler.config import loader as config_loader
 from procler.config.schema import parse_recipe_step
@@ -32,6 +28,7 @@ def config_dir(tmp_path):
 
     # Change working directory
     import os
+
     old_cwd = os.getcwd()
     os.chdir(tmp_path)
     config_loader.reset_config_cache()
@@ -154,6 +151,7 @@ def test_generate_template_config(config_dir):
 
 
 # Schema tests
+
 
 def test_process_def():
     """Test ProcessDef model."""

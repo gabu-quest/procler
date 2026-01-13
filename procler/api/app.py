@@ -3,7 +3,6 @@
 import asyncio
 import os
 import signal
-import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -50,7 +49,6 @@ async def _log_rotation_loop():
 
 async def _recover_processes():
     """Check for orphaned processes on startup and update their status."""
-    from sqler.query import SQLerField as F
 
     from ..db import init_database
     from ..models import Process, ProcessStatus
@@ -59,10 +57,7 @@ async def _recover_processes():
 
     # Find processes marked as running
     all_procs = Process.query().all()
-    running = [
-        p for p in all_procs
-        if p.status in [ProcessStatus.RUNNING.value, ProcessStatus.STARTING.value]
-    ]
+    running = [p for p in all_procs if p.status in [ProcessStatus.RUNNING.value, ProcessStatus.STARTING.value]]
 
     if not running:
         return

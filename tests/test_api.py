@@ -27,21 +27,21 @@ def test_health_check(client):
 
 async def test_lifespan_startup_shutdown():
     """Test that lifespan context manager starts and shuts down cleanly."""
-    from unittest.mock import AsyncMock, MagicMock
-    from procler.api.app import _log_rotation_loop, _graceful_shutdown
-    
+    from unittest.mock import MagicMock
+
     # Create a mock app
     app = MagicMock()
-    
+
     # Test that lifespan can be entered and exited without errors
     async with lifespan(app):
         # If we get here, startup succeeded
         await asyncio.sleep(0.1)  # Brief pause to let background tasks start
-    
+
     # If we exit cleanly, shutdown succeeded
 
 
 # Process endpoints tests
+
 
 def test_list_processes_empty(client):
     """Test listing processes when none exist."""
@@ -244,6 +244,7 @@ def test_restart_process(client):
 
 # Logs endpoint tests
 
+
 def test_get_logs_empty(client):
     """Test getting logs for a process with no logs."""
     # Create a process
@@ -286,6 +287,7 @@ def test_get_logs_not_found(client):
 
 
 # Snippets endpoint tests
+
 
 def test_list_snippets_empty(client):
     """Test listing snippets when none exist."""

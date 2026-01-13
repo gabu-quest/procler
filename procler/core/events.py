@@ -1,7 +1,8 @@
 """Event system for broadcasting status and log updates."""
 
 import asyncio
-from typing import Any, Callable, Coroutine
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 # Type for async event handlers
 EventHandler = Callable[[dict[str, Any]], Coroutine[Any, Any, None]]

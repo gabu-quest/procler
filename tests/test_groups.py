@@ -2,8 +2,8 @@
 
 import pytest
 
-from procler.core.groups import GroupManager, get_group_manager, reset_group_manager
 from procler.config import loader as config_loader
+from procler.core.groups import get_group_manager, reset_group_manager
 
 
 @pytest.fixture
@@ -43,6 +43,7 @@ groups:
 
     # Point config loader to this directory
     import os
+
     old_cwd = os.getcwd()
     os.chdir(tmp_path)
     config_loader.reset_config_cache()

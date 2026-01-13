@@ -5,8 +5,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from ..deps import get_snippets
 from ...core import SnippetManager
+from ..deps import get_snippets
 
 router = APIRouter()
 

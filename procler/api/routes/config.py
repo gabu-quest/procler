@@ -6,12 +6,12 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from ...config import (
-    get_config,
-    reload_config,
-    get_config_file_path,
-    get_changelog_path,
     find_config_dir,
+    get_changelog_path,
+    get_config,
+    get_config_file_path,
     read_changelog,
+    reload_config,
 )
 
 router = APIRouter()
@@ -67,15 +67,17 @@ async def list_config_processes() -> ConfigResponse:
 
     processes = []
     for name, proc in config.processes.items():
-        processes.append({
-            "name": name,
-            "command": proc.command,
-            "context": proc.context.value,
-            "container": proc.container,
-            "cwd": proc.cwd,
-            "description": proc.description,
-            "tags": proc.tags,
-        })
+        processes.append(
+            {
+                "name": name,
+                "command": proc.command,
+                "context": proc.context.value,
+                "container": proc.container,
+                "cwd": proc.cwd,
+                "description": proc.description,
+                "tags": proc.tags,
+            }
+        )
 
     return ConfigResponse(
         success=True,
@@ -202,12 +204,14 @@ async def explain_config() -> ConfigResponse:
             if proc.description:
                 desc += f" - {proc.description}"
             proc_explanations.append(desc)
-        sections.append({
-            "type": "processes",
-            "title": f"{len(config.processes)} Process Definitions",
-            "explanation": "These processes can be started, stopped, and monitored individually.",
-            "items": proc_explanations,
-        })
+        sections.append(
+            {
+                "type": "processes",
+                "title": f"{len(config.processes)} Process Definitions",
+                "explanation": "These processes can be started, stopped, and monitored individually.",
+                "items": proc_explanations,
+            }
+        )
 
     # Explain groups
     if config.groups:
@@ -220,12 +224,14 @@ async def explain_config() -> ConfigResponse:
             if group.description:
                 desc += f" - {group.description}"
             group_explanations.append(desc)
-        sections.append({
-            "type": "groups",
-            "title": f"{len(config.groups)} Process Groups",
-            "explanation": "Groups start processes in order and stop them in reverse (or custom) order.",
-            "items": group_explanations,
-        })
+        sections.append(
+            {
+                "type": "groups",
+                "title": f"{len(config.groups)} Process Groups",
+                "explanation": "Groups start processes in order and stop them in reverse (or custom) order.",
+                "items": group_explanations,
+            }
+        )
 
     # Explain recipes
     if config.recipes:
@@ -238,12 +244,14 @@ async def explain_config() -> ConfigResponse:
             if recipe.description:
                 desc += f" - {recipe.description}"
             recipe_explanations.append(desc)
-        sections.append({
-            "type": "recipes",
-            "title": f"{len(config.recipes)} Recipes",
-            "explanation": "Recipes are multi-step operations that automate common workflows.",
-            "items": recipe_explanations,
-        })
+        sections.append(
+            {
+                "type": "recipes",
+                "title": f"{len(config.recipes)} Recipes",
+                "explanation": "Recipes are multi-step operations that automate common workflows.",
+                "items": recipe_explanations,
+            }
+        )
 
     # Explain snippets
     if config.snippets:
@@ -254,16 +262,21 @@ async def explain_config() -> ConfigResponse:
             if snippet.description:
                 desc += f" - {snippet.description}"
             snippet_explanations.append(desc)
-        sections.append({
-            "type": "snippets",
-            "title": f"{len(config.snippets)} Snippets",
-            "explanation": "Snippets are reusable commands you can run quickly.",
-            "items": snippet_explanations,
-        })
+        sections.append(
+            {
+                "type": "snippets",
+                "title": f"{len(config.snippets)} Snippets",
+                "explanation": "Snippets are reusable commands you can run quickly.",
+                "items": snippet_explanations,
+            }
+        )
 
     # Build summary
     total = len(config.processes) + len(config.groups) + len(config.recipes) + len(config.snippets)
-    summary = f"Config defines {total} items: {len(config.processes)} processes, {len(config.groups)} groups, {len(config.recipes)} recipes, {len(config.snippets)} snippets."
+    summary = (
+        f"Config defines {total} items: {len(config.processes)} processes, "
+        f"{len(config.groups)} groups, {len(config.recipes)} recipes, {len(config.snippets)} snippets."
+    )
 
     return ConfigResponse(
         success=True,

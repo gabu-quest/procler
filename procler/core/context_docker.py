@@ -1,11 +1,11 @@
 """Docker container execution context using docker-py SDK."""
 
 import asyncio
-from typing import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable
 
 try:
     import docker
-    from docker.errors import APIError, ContainerError, NotFound
+    from docker.errors import APIError, NotFound
 
     DOCKER_AVAILABLE = True
 except ImportError:
@@ -19,9 +19,7 @@ class DockerContext(ExecutionContext):
 
     def __init__(self):
         if not DOCKER_AVAILABLE:
-            raise RuntimeError(
-                "Docker SDK not available. Install with: pip install docker"
-            )
+            raise RuntimeError("Docker SDK not available. Install with: pip install docker")
         self._client = docker.from_env()
         self._exec_instances: dict[int, tuple] = {}  # pid -> (container, exec_id)
 
@@ -81,9 +79,7 @@ class DockerContext(ExecutionContext):
         container = self._get_container(container_name)
 
         if container.status != "running":
-            raise RuntimeError(
-                f"Container '{container_name}' is not running (status: {container.status})"
-            )
+            raise RuntimeError(f"Container '{container_name}' is not running (status: {container.status})")
 
         # Build environment variables list
         env_list = [f"{k}={v}" for k, v in (env or {}).items()]
@@ -111,9 +107,7 @@ class DockerContext(ExecutionContext):
         async def stream_output():
             try:
                 # Start exec and stream output
-                output = container.client.api.exec_start(
-                    exec_id, stream=True, demux=True
-                )
+                output = container.client.api.exec_start(exec_id, stream=True, demux=True)
 
                 for stdout_chunk, stderr_chunk in output:
                     if stdout_chunk:

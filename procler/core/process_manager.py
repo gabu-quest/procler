@@ -8,14 +8,14 @@ from typing import Any
 
 from sqler.query import SQLerField as F
 
+from ..config import ChangelogAction, append_changelog
 from ..db import init_database
 from ..models import LogEntry, Process, ProcessStatus
-from ..config import append_changelog, ChangelogAction
 from .context_base import ExecResult, ExecutionContext, ProcessHandle
 from .context_docker import get_docker_context, is_docker_available
-from .context_local import LocalContext, get_local_context
-from .events import EVENT_LOG_ENTRY, EVENT_STATUS_CHANGE, get_event_bus
+from .context_local import get_local_context
 from .daemon_detector import get_daemon_detector
+from .events import EVENT_LOG_ENTRY, EVENT_STATUS_CHANGE, get_event_bus
 from .variable_substitution import substitute_vars_from_config
 
 # Default max log entries per process
@@ -25,7 +25,10 @@ DEFAULT_MAX_LOGS = 10000
 LINUX_PROCESS_STATES = {
     "R": {"name": "running", "description": "Running or runnable (on run queue)"},
     "S": {"name": "sleeping", "description": "Interruptible sleep (waiting for event)"},
-    "D": {"name": "disk_sleep", "description": "Uninterruptible sleep (usually I/O) - CANNOT BE KILLED"},
+    "D": {
+        "name": "disk_sleep",
+        "description": "Uninterruptible sleep (usually I/O) - CANNOT BE KILLED",
+    },
     "Z": {"name": "zombie", "description": "Zombie - terminated but not reaped by parent"},
     "T": {"name": "stopped", "description": "Stopped by job control signal"},
     "t": {"name": "tracing_stop", "description": "Stopped by debugger during tracing"},
@@ -62,13 +65,12 @@ def get_linux_process_state(pid: int) -> dict[str, Any] | None:
             return None
 
         # State is the first character after ") "
-        state_section = content[last_paren + 2:]
+        state_section = content[last_paren + 2 :]
         state_code = state_section.split()[0]
 
-        state_info = LINUX_PROCESS_STATES.get(state_code, {
-            "name": "unknown",
-            "description": f"Unknown state: {state_code}"
-        })
+        state_info = LINUX_PROCESS_STATES.get(
+            state_code, {"name": "unknown", "description": f"Unknown state: {state_code}"}
+        )
 
         return {
             "state_code": state_code,
@@ -77,7 +79,7 @@ def get_linux_process_state(pid: int) -> dict[str, Any] | None:
             "is_killable": state_code != "D",
         }
 
-    except (OSError, IOError, IndexError):
+    except (OSError, IndexError):
         return None
 
 
@@ -90,7 +92,7 @@ def get_process_children(pid: int) -> list[int]:
             content = children_path.read_text().strip()
             if content:
                 children = [int(p) for p in content.split()]
-    except (OSError, IOError, ValueError):
+    except (OSError, ValueError):
         pass
     return children
 
@@ -110,10 +112,10 @@ def parse_duration(duration: str) -> int:
         pass
 
     multipliers = {
-        's': 1,
-        'm': 60,
-        'h': 3600,
-        'd': 86400,
+        "s": 1,
+        "m": 60,
+        "h": 3600,
+        "d": 86400,
     }
 
     if duration[-1] in multipliers:
@@ -162,6 +164,7 @@ class ProcessManager:
 
     def _log_callback(self, process_id: int, stream: str):
         """Create a callback for logging output."""
+
         def callback(line: str) -> None:
             timestamp = datetime.now().isoformat()
             entry = LogEntry(
@@ -182,10 +185,12 @@ class ProcessManager:
                     "timestamp": timestamp,
                 },
             )
+
         return callback
 
     def _exit_callback(self, process: Process):
         """Create a callback for process exit."""
+
         def callback(exit_code: int) -> None:
             # Reload process to get latest state
             updated = Process.from_id(process._id)
@@ -209,6 +214,7 @@ class ProcessManager:
                         "pid": None,
                     },
                 )
+
         return callback
 
     async def start(self, name: str) -> dict[str, Any]:
@@ -248,9 +254,7 @@ class ProcessManager:
                 }
 
         # Daemon mode: Check if we should adopt an existing daemon
-        if getattr(process, "daemon_mode", False) and getattr(
-            process, "adopt_existing", False
-        ):
+        if getattr(process, "daemon_mode", False) and getattr(process, "adopt_existing", False):
             detector = get_daemon_detector()
             # Determine container for daemon detection
             # Use daemon_container if set, otherwise fall back to container_name for docker context
@@ -673,7 +677,6 @@ class ProcessManager:
 
     def _is_pid_running(self, pid: int) -> bool:
         """Check if a PID is still running in the OS."""
-        import os
 
         try:
             os.kill(pid, 0)  # Signal 0 just checks if process exists
@@ -686,7 +689,6 @@ class ProcessManager:
 
     async def _kill_pid(self, pid: int, timeout: float = 10.0) -> int:
         """Kill a process by PID directly (kills entire process group)."""
-        import os
         import signal
 
         try:
@@ -717,9 +719,7 @@ class ProcessManager:
         except PermissionError:
             return -1
 
-    async def _kill_daemon_in_container(
-        self, container: str, pid: int, timeout: float = 10.0
-    ) -> int:
+    async def _kill_daemon_in_container(self, container: str, pid: int, timeout: float = 10.0) -> int:
         """Kill a daemon process inside a Docker container."""
         import logging
 

@@ -1,16 +1,16 @@
 """Tests for health check functionality."""
 
 import asyncio
+
 import pytest
 
+from procler.config import HealthCheckDef
 from procler.core.health import (
-    HealthChecker,
-    HealthStatus,
     HealthState,
+    HealthStatus,
     get_health_checker,
     reset_health_checker,
 )
-from procler.config import HealthCheckDef
 
 
 def test_health_checker_singleton():
@@ -181,6 +181,7 @@ def test_reset():
 
 
 # HealthCheckDef parsing tests
+
 
 def test_healthcheck_def_defaults():
     """Test HealthCheckDef default values."""

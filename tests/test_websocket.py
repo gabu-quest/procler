@@ -4,8 +4,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from procler.api import create_app
-from procler.api.routes.ws import ConnectionManager, get_connection_manager
-from procler.core.events import EVENT_LOG_ENTRY, EVENT_STATUS_CHANGE, get_event_bus
+from procler.api.routes.ws import ConnectionManager
+from procler.core.events import get_event_bus
 
 
 @pytest.fixture
@@ -26,6 +26,7 @@ class TestConnectionManager:
 
     def test_connect_disconnect(self, ws_manager):
         """Test connecting and disconnecting."""
+
         # Create mock websocket
         class MockWebSocket:
             async def accept(self):
@@ -62,9 +63,7 @@ class TestConnectionManager:
 
         # Unsubscribe
         ws_manager.unsubscribe_logs(ws, process_id=1)
-        assert 1 not in ws_manager.log_subscriptions or ws not in ws_manager.log_subscriptions.get(
-            1, set()
-        )
+        assert 1 not in ws_manager.log_subscriptions or ws not in ws_manager.log_subscriptions.get(1, set())
 
     def test_subscribe_status(self, ws_manager):
         """Test status subscription."""
@@ -101,9 +100,7 @@ class TestConnectionManager:
         ws_manager.active_connections.append(ws)
         ws_manager.subscribe_logs(ws, process_id=1)
 
-        await ws_manager.broadcast_log(
-            process_id=1, log_data={"line": "test log", "stream": "stdout"}
-        )
+        await ws_manager.broadcast_log(process_id=1, log_data={"line": "test log", "stream": "stdout"})
 
         assert len(received) == 1
         assert received[0]["type"] == "log"
@@ -122,9 +119,7 @@ class TestConnectionManager:
         ws_manager.active_connections.append(ws)
         ws_manager.subscribe_status(ws, process_id=1)
 
-        await ws_manager.broadcast_status(
-            process_id=1, status_data={"status": "running", "pid": 12345}
-        )
+        await ws_manager.broadcast_status(process_id=1, status_data={"status": "running", "pid": 12345})
 
         assert len(received) == 1
         assert received[0]["type"] == "status"
@@ -168,9 +163,7 @@ class TestConnectionManager:
 
         assert ws not in ws_manager.active_connections
         assert ws not in ws_manager.global_status_subscriptions
-        assert 1 not in ws_manager.log_subscriptions or ws not in ws_manager.log_subscriptions.get(
-            1, set()
-        )
+        assert 1 not in ws_manager.log_subscriptions or ws not in ws_manager.log_subscriptions.get(1, set())
 
 
 class TestWebSocketEndpoint:

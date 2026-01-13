@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -13,6 +13,7 @@ from .loader import get_changelog_path
 
 class ChangelogAction(str, Enum):
     """Types of changelog actions."""
+
     CREATE = "CREATE"
     UPDATE = "UPDATE"
     DELETE = "DELETE"
@@ -61,7 +62,7 @@ def append_changelog(
         changelog_path.write_text(header)
 
     # Build log entry
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     details_json = json.dumps(details or {}, separators=(",", ":"))
     entry = f"[{timestamp}] {action.value} {entity_type}:{entity_name} {details_json}\n"
 
@@ -106,7 +107,7 @@ def read_changelog(changelog_path: Path | None = None) -> list[dict[str, Any]]:
             timestamp = line[1:ts_end]
 
             # Find the action
-            rest = line[ts_end + 2:]  # Skip "] "
+            rest = line[ts_end + 2 :]  # Skip "] "
             parts = rest.split(" ", 2)
             if len(parts) < 2:
                 continue
@@ -121,13 +122,15 @@ def read_changelog(changelog_path: Path | None = None) -> list[dict[str, Any]]:
             # Parse details JSON
             details = json.loads(details_str)
 
-            entries.append({
-                "timestamp": timestamp,
-                "action": action,
-                "entity_type": entity_type,
-                "entity_name": entity_name,
-                "details": details,
-            })
+            entries.append(
+                {
+                    "timestamp": timestamp,
+                    "action": action,
+                    "entity_type": entity_type,
+                    "entity_name": entity_name,
+                    "details": details,
+                }
+            )
         except (ValueError, json.JSONDecodeError):
             # Skip malformed lines
             continue
@@ -142,7 +145,4 @@ def get_entity_history(
 ) -> list[dict[str, Any]]:
     """Get changelog entries for a specific entity."""
     entries = read_changelog(changelog_path)
-    return [
-        e for e in entries
-        if e["entity_type"] == entity_type and e["entity_name"] == entity_name
-    ]
+    return [e for e in entries if e["entity_type"] == entity_type and e["entity_name"] == entity_name]

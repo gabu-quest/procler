@@ -4,8 +4,8 @@ from pathlib import Path
 
 from sqler import SQLerDB
 
-from .settings import get_db_path
 from .models import LogEntry, Process, Snippet
+from .settings import get_db_path
 
 # Global database instance
 _db: SQLerDB | None = None

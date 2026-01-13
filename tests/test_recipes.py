@@ -2,8 +2,8 @@
 
 import pytest
 
-from procler.core.recipes import RecipeExecutor, get_recipe_executor, reset_recipe_executor
 from procler.config import loader as config_loader
+from procler.core.recipes import get_recipe_executor, reset_recipe_executor
 
 
 @pytest.fixture
@@ -57,6 +57,7 @@ recipes:
 
     # Point config loader to this directory
     import os
+
     old_cwd = os.getcwd()
     os.chdir(tmp_path)
     config_loader.reset_config_cache()

@@ -1,13 +1,10 @@
 """Pytest configuration and fixtures."""
 
-import tempfile
-from pathlib import Path
-
 import pytest
 
 from procler import db
-from procler.core import context_local, events, process_manager, snippets, groups, recipes, health
 from procler.config import loader as config_loader
+from procler.core import context_local, events, groups, health, process_manager, recipes, snippets
 
 
 @pytest.fixture(autouse=True)

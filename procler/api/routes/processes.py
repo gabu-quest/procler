@@ -5,8 +5,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ..deps import get_manager
 from ...core import ProcessManager
+from ..deps import get_manager
 
 router = APIRouter()
 

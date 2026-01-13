@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from ..config import get_config, GroupDef, DependencyCondition
-from . import get_process_manager
-from .health import get_health_checker, HealthStatus
+from ..config import DependencyCondition, get_config
+from .health import get_health_checker
+from .process_manager import get_process_manager
 
 
 class GroupManager:
@@ -23,12 +23,14 @@ class GroupManager:
 
         groups_data = []
         for name, group in config.groups.items():
-            groups_data.append({
-                "name": name,
-                "description": group.description,
-                "processes": group.processes,
-                "stop_order": group.get_stop_order(),
-            })
+            groups_data.append(
+                {
+                    "name": name,
+                    "description": group.description,
+                    "processes": group.processes,
+                    "stop_order": group.get_stop_order(),
+                }
+            )
 
         return {
             "success": True,
@@ -93,11 +95,13 @@ class GroupManager:
         for proc_name in group.processes:
             # Check if process is defined in config
             if proc_name not in config.processes:
-                results.append({
-                    "process": proc_name,
-                    "success": False,
-                    "error": f"Process '{proc_name}' not defined in config",
-                })
+                results.append(
+                    {
+                        "process": proc_name,
+                        "success": False,
+                        "error": f"Process '{proc_name}' not defined in config",
+                    }
+                )
                 all_success = False
                 continue
 
@@ -105,16 +109,16 @@ class GroupManager:
 
             # Check dependencies before starting
             if respect_dependencies and proc_def.depends_on:
-                dep_result = await self._wait_for_dependencies(
-                    proc_name, proc_def, config, dependency_timeout
-                )
+                dep_result = await self._wait_for_dependencies(proc_name, proc_def, config, dependency_timeout)
                 if not dep_result["success"]:
-                    results.append({
-                        "process": proc_name,
-                        "success": False,
-                        "error": dep_result["error"],
-                        "dependency_failures": dep_result.get("failures", []),
-                    })
+                    results.append(
+                        {
+                            "process": proc_name,
+                            "success": False,
+                            "error": dep_result["error"],
+                            "dependency_failures": dep_result.get("failures", []),
+                        }
+                    )
                     all_success = False
                     continue
 
@@ -127,16 +131,16 @@ class GroupManager:
             # Start health checking if configured
             if proc_def.healthcheck:
                 self._health_checker.register_process(proc_name, proc_def.healthcheck)
-                asyncio.create_task(
-                    self._health_checker.start_checking(proc_name, proc_def.healthcheck)
-                )
+                asyncio.create_task(self._health_checker.start_checking(proc_name, proc_def.healthcheck))
 
-            results.append({
-                "process": proc_name,
-                "success": result["success"],
-                "status": result.get("data", {}).get("status"),
-                "error": result.get("error"),
-            })
+            results.append(
+                {
+                    "process": proc_name,
+                    "success": result["success"],
+                    "status": result.get("data", {}).get("status"),
+                    "error": result.get("error"),
+                }
+            )
 
             if not result["success"]:
                 all_success = False
@@ -166,10 +170,12 @@ class GroupManager:
 
             # Check if dependency exists
             if dep_name not in config.processes:
-                failures.append({
-                    "dependency": dep_name,
-                    "error": "Dependency not defined in config",
-                })
+                failures.append(
+                    {
+                        "dependency": dep_name,
+                        "error": "Dependency not defined in config",
+                    }
+                )
                 continue
 
             dep_def = config.processes[dep_name]
@@ -177,41 +183,47 @@ class GroupManager:
             # Check if dependency is running
             status_result = await self._process_manager.status(dep_name)
             if not status_result["success"]:
-                failures.append({
-                    "dependency": dep_name,
-                    "error": f"Could not get status: {status_result.get('error')}",
-                })
+                failures.append(
+                    {
+                        "dependency": dep_name,
+                        "error": f"Could not get status: {status_result.get('error')}",
+                    }
+                )
                 continue
 
             proc_status = status_result.get("data", {}).get("process", {}).get("status")
 
             if proc_status != "running":
-                failures.append({
-                    "dependency": dep_name,
-                    "error": f"Dependency not running (status: {proc_status})",
-                    "condition": dep.condition.value,
-                })
+                failures.append(
+                    {
+                        "dependency": dep_name,
+                        "error": f"Dependency not running (status: {proc_status})",
+                        "condition": dep.condition.value,
+                    }
+                )
                 continue
 
             # If condition is 'healthy', wait for health check
             if dep.condition == DependencyCondition.HEALTHY:
                 if not dep_def.healthcheck:
-                    failures.append({
-                        "dependency": dep_name,
-                        "error": "Dependency requires healthy condition but has no healthcheck",
-                    })
+                    failures.append(
+                        {
+                            "dependency": dep_name,
+                            "error": "Dependency requires healthy condition but has no healthcheck",
+                        }
+                    )
                     continue
 
                 # Wait for healthy status
-                is_healthy = await self._health_checker.wait_for_healthy(
-                    dep_name, dep_def.healthcheck, timeout
-                )
+                is_healthy = await self._health_checker.wait_for_healthy(dep_name, dep_def.healthcheck, timeout)
                 if not is_healthy:
-                    failures.append({
-                        "dependency": dep_name,
-                        "error": f"Dependency not healthy after {timeout}s",
-                        "condition": "healthy",
-                    })
+                    failures.append(
+                        {
+                            "dependency": dep_name,
+                            "error": f"Dependency not healthy after {timeout}s",
+                            "condition": "healthy",
+                        }
+                    )
                     continue
 
         if failures:
@@ -242,11 +254,13 @@ class GroupManager:
         for proc_name in stop_order:
             # Check if process is defined
             if proc_name not in config.processes:
-                results.append({
-                    "process": proc_name,
-                    "success": False,
-                    "error": f"Process '{proc_name}' not defined in config",
-                })
+                results.append(
+                    {
+                        "process": proc_name,
+                        "success": False,
+                        "error": f"Process '{proc_name}' not defined in config",
+                    }
+                )
                 all_success = False
                 continue
 
@@ -258,12 +272,14 @@ class GroupManager:
 
             # Stop the process
             result = await self._process_manager.stop(proc_name)
-            results.append({
-                "process": proc_name,
-                "success": result["success"],
-                "status": result.get("data", {}).get("status"),
-                "error": result.get("error"),
-            })
+            results.append(
+                {
+                    "process": proc_name,
+                    "success": result["success"],
+                    "status": result.get("data", {}).get("status"),
+                    "error": result.get("error"),
+                }
+            )
 
             if not result["success"]:
                 all_success = False
@@ -293,11 +309,13 @@ class GroupManager:
 
         for proc_name in group.processes:
             if proc_name not in config.processes:
-                statuses.append({
-                    "process": proc_name,
-                    "status": "not_defined",
-                    "error": "Not defined in config",
-                })
+                statuses.append(
+                    {
+                        "process": proc_name,
+                        "status": "not_defined",
+                        "error": "Not defined in config",
+                    }
+                )
                 continue
 
             proc_def = config.processes[proc_name]
@@ -323,17 +341,18 @@ class GroupManager:
                 # Include dependency info
                 if proc_def.depends_on:
                     status_entry["depends_on"] = [
-                        {"name": d.name, "condition": d.condition.value}
-                        for d in proc_def.get_dependencies()
+                        {"name": d.name, "condition": d.condition.value} for d in proc_def.get_dependencies()
                     ]
 
                 statuses.append(status_entry)
             else:
-                statuses.append({
-                    "process": proc_name,
-                    "status": "unknown",
-                    "error": result.get("error"),
-                })
+                statuses.append(
+                    {
+                        "process": proc_name,
+                        "status": "unknown",
+                        "error": result.get("error"),
+                    }
+                )
 
         return {
             "success": True,
@@ -347,7 +366,9 @@ class GroupManager:
     async def _ensure_process_in_db(self, name: str, proc_def) -> None:
         """Ensure a process from config exists in the runtime database."""
         from datetime import datetime
+
         from sqler.query import SQLerField as F
+
         from ..db import init_database
         from ..models import Process
 

@@ -3,25 +3,27 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ContextType(str, Enum):
     """Execution context type."""
+
     LOCAL = "local"
     DOCKER = "docker"
 
 
 class OnErrorAction(str, Enum):
     """What to do when a recipe step fails."""
+
     STOP = "stop"
     CONTINUE = "continue"
 
 
 class HealthCheckDef(BaseModel):
     """Health check definition for a process."""
+
     test: str  # Command to run, e.g., "curl -f http://localhost:8000/health"
     interval: str = "10s"  # Time between checks
     timeout: str = "5s"  # How long to wait for check to complete
@@ -55,18 +57,21 @@ class HealthCheckDef(BaseModel):
 
 class DependencyCondition(str, Enum):
     """Conditions for process dependencies."""
+
     STARTED = "started"  # Just needs to be running
     HEALTHY = "healthy"  # Must pass health check
 
 
 class DependencyDef(BaseModel):
     """Dependency definition for a process."""
+
     name: str  # Process name
     condition: DependencyCondition = DependencyCondition.STARTED
 
 
 class ProcessDef(BaseModel):
     """Process definition from config file."""
+
     command: str
     context: ContextType = ContextType.LOCAL
     container: str | None = None
@@ -105,9 +110,7 @@ class ProcessDef(BaseModel):
         """Validate daemon mode configuration."""
         if self.daemon_mode:
             if not self.daemon_match_pattern and not self.daemon_pidfile:
-                raise ValueError(
-                    "daemon_mode requires either daemon_match_pattern or daemon_pidfile"
-                )
+                raise ValueError("daemon_mode requires either daemon_match_pattern or daemon_pidfile")
         if self.adopt_existing and not self.daemon_mode:
             raise ValueError("adopt_existing requires daemon_mode=true")
         return self
@@ -115,6 +118,7 @@ class ProcessDef(BaseModel):
 
 class GroupDef(BaseModel):
     """Process group definition."""
+
     processes: list[str]
     description: str | None = None
     stop_order: list[str] | None = None  # If None, reverse of processes
@@ -128,32 +132,38 @@ class GroupDef(BaseModel):
 
 class RecipeStepStart(BaseModel):
     """Start a process."""
+
     start: str
 
 
 class RecipeStepStop(BaseModel):
     """Stop a process."""
+
     stop: str
     ignore_error: bool = False
 
 
 class RecipeStepRestart(BaseModel):
     """Restart a process."""
+
     restart: str
 
 
 class RecipeStepGroupStart(BaseModel):
     """Start a process group."""
+
     group_start: str
 
 
 class RecipeStepGroupStop(BaseModel):
     """Stop a process group."""
+
     group_stop: str
 
 
 class RecipeStepWait(BaseModel):
     """Wait for a duration."""
+
     wait: str  # e.g., "2s", "500ms", "1m"
 
     def get_seconds(self) -> float:
@@ -172,6 +182,7 @@ class RecipeStepWait(BaseModel):
 
 class RecipeStepExec(BaseModel):
     """Execute an arbitrary command."""
+
     exec: str
     context: ContextType = ContextType.LOCAL
     container: str | None = None
@@ -226,6 +237,7 @@ def parse_recipe_step(step_data: dict) -> RecipeStep:
 
 class RecipeDef(BaseModel):
     """Recipe definition - multi-step operation."""
+
     description: str | None = None
     steps: list[dict]  # Raw dicts, parsed lazily
     on_error: OnErrorAction = OnErrorAction.STOP
@@ -237,6 +249,7 @@ class RecipeDef(BaseModel):
 
 class SnippetDef(BaseModel):
     """Snippet definition - simple reusable command."""
+
     command: str
     description: str | None = None
     context: ContextType = ContextType.LOCAL
@@ -246,6 +259,7 @@ class SnippetDef(BaseModel):
 
 class ProclerConfig(BaseModel):
     """Root configuration object."""
+
     version: int = 1
     vars: dict[str, str] = Field(default_factory=dict)  # Variable substitution
     processes: dict[str, ProcessDef] = Field(default_factory=dict)
@@ -261,15 +275,11 @@ class ProclerConfig(BaseModel):
         for group_name, group in self.groups.items():
             for proc in group.processes:
                 if proc not in self.processes:
-                    errors.append(
-                        f"Group '{group_name}' references unknown process '{proc}'"
-                    )
+                    errors.append(f"Group '{group_name}' references unknown process '{proc}'")
             if group.stop_order:
                 for proc in group.stop_order:
                     if proc not in self.processes:
-                        errors.append(
-                            f"Group '{group_name}' stop_order references unknown process '{proc}'"
-                        )
+                        errors.append(f"Group '{group_name}' stop_order references unknown process '{proc}'")
 
         # Check recipe references
         for recipe_name, recipe in self.recipes.items():
@@ -279,9 +289,7 @@ class ProclerConfig(BaseModel):
                         f"Recipe '{recipe_name}' step {i+1} references unknown process '{step_data['start']}'"
                     )
                 if "stop" in step_data and step_data["stop"] not in self.processes:
-                    errors.append(
-                        f"Recipe '{recipe_name}' step {i+1} references unknown process '{step_data['stop']}'"
-                    )
+                    errors.append(f"Recipe '{recipe_name}' step {i+1} references unknown process '{step_data['stop']}'")
                 if "restart" in step_data and step_data["restart"] not in self.processes:
                     errors.append(
                         f"Recipe '{recipe_name}' step {i+1} references unknown process '{step_data['restart']}'"
@@ -298,14 +306,10 @@ class ProclerConfig(BaseModel):
         # Check docker contexts have containers
         for name, proc in self.processes.items():
             if proc.context == ContextType.DOCKER and not proc.container:
-                errors.append(
-                    f"Process '{name}' has docker context but no container specified"
-                )
+                errors.append(f"Process '{name}' has docker context but no container specified")
 
         for name, snippet in self.snippets.items():
             if snippet.context == ContextType.DOCKER and not snippet.container:
-                errors.append(
-                    f"Snippet '{name}' has docker context but no container specified"
-                )
+                errors.append(f"Snippet '{name}' has docker context but no container specified")
 
         return errors

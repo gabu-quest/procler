@@ -2,8 +2,7 @@
 
 import asyncio
 import os
-import signal
-from typing import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable
 
 from .context_base import ExecResult, ExecutionContext, ProcessHandle
 
@@ -94,14 +93,10 @@ class LocalContext(ExecutionContext):
 
         # Start tasks to read stdout/stderr
         if process.stdout:
-            managed.stdout_task = asyncio.create_task(
-                self._read_stream(process.stdout, "stdout", managed, on_stdout)
-            )
+            managed.stdout_task = asyncio.create_task(self._read_stream(process.stdout, "stdout", managed, on_stdout))
 
         if process.stderr:
-            managed.stderr_task = asyncio.create_task(
-                self._read_stream(process.stderr, "stderr", managed, on_stderr)
-            )
+            managed.stderr_task = asyncio.create_task(self._read_stream(process.stderr, "stderr", managed, on_stderr))
 
         # Start a task to monitor process exit
         if on_exit:
@@ -160,7 +155,7 @@ class LocalContext(ExecutionContext):
 
         try:
             exit_code = await asyncio.wait_for(managed.wait(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             # Force kill if graceful shutdown times out
             managed.kill()
             exit_code = await managed.wait()
@@ -202,7 +197,7 @@ class LocalContext(ExecutionContext):
                 process.communicate(),
                 timeout=timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             process.kill()
             await process.wait()
             return ExecResult(

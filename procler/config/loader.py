@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
-from typing import Any
 
 import yaml
 
@@ -135,6 +134,7 @@ def load_config(config_path: Path | None = None) -> ProclerConfig:
     # Warn about suspicious patterns in vars (security check)
     if config.vars:
         from ..core.variable_substitution import warn_suspicious_vars
+
         warn_suspicious_vars(config.vars)
 
     _config_cache = config
@@ -183,7 +183,7 @@ def reset_config_cache() -> None:
 
 def generate_template_config() -> str:
     """Generate a template config.yaml with examples."""
-    return '''\
+    return """\
 # Procler Configuration - LLM-First Process Manager
 # https://github.com/gabu-quest/procler
 #
@@ -253,4 +253,4 @@ snippets:
   #   command: docker compose build
   #   description: "Rebuild all containers"
   #   tags: [docker, build]
-'''
+"""
