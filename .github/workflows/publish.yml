@@ -1,8 +1,9 @@
 name: Publish to PyPI
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "v*"
 
 jobs:
   publish:
@@ -10,9 +11,17 @@ jobs:
     environment: release
     permissions:
       id-token: write  # Required for trusted publishing
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Ensure tag is on main
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v4
