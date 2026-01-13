@@ -74,13 +74,13 @@ Define vars in `.procler/config.yaml` and reference them in commands and contain
 
 ```yaml
 vars:
-  SIM_CONTAINER: VK_optex-worktree
+  SIM_CONTAINER: my-sim-container
   SIM_USER: "1000"
-  SIM_WORKDIR: /home/product
+  SIM_WORKDIR: /opt/sim
 
 processes:
-  simscip:
-    command: "${SIM_WORKDIR}/bin/simscip"
+  simulator:
+    command: "${SIM_WORKDIR}/bin/simulator"
     context: docker
     container: "${SIM_CONTAINER}"
 ```
