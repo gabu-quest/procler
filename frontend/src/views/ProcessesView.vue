@@ -15,15 +15,60 @@
         <n-alert type="error" :title="store.error" />
       </div>
 
-      <n-data-table
-        v-else
-        :columns="columns"
-        :data="store.processes"
-        :row-key="(row: Process) => row.id"
-        :bordered="false"
-        striped
-      />
+      <div v-else class="table-shell">
+        <div class="table-toolbar">
+          <div class="table-title">
+            <span class="title-label">Process Registry</span>
+            <span class="title-sub">Live runtime inventory</span>
+          </div>
+          <div class="table-meta">
+            <n-tag size="small" type="success" :bordered="false">
+              <template #icon>
+                <PhPlay weight="fill" />
+              </template>
+              {{ store.runningCount }} running
+            </n-tag>
+            <n-tag size="small" :bordered="false">
+              <template #icon>
+                <PhListBullets />
+              </template>
+              {{ store.processes.length }} total
+            </n-tag>
+          </div>
+        </div>
+
+        <div v-if="store.processes.length === 0" class="empty-table">
+          <n-empty description="No processes defined" size="small">
+            <template #extra>
+              <p class="empty-hint">Define processes in <code>.procler/config.yaml</code> or via CLI.</p>
+            </template>
+          </n-empty>
+        </div>
+
+        <n-data-table
+          v-else
+          class="processes-table"
+          :columns="columns"
+          :data="store.processes"
+          :row-key="(row: Process) => row.id"
+          :bordered="false"
+          size="large"
+          striped
+        />
+      </div>
     </n-spin>
+
+    <n-modal v-model:show="showCommandModal" preset="card" :title="commandModalTitle" style="max-width: 720px;">
+      <div class="command-modal">
+        <pre class="command-code"><code>{{ selectedCommand }}</code></pre>
+      </div>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showCommandModal = false">Close</n-button>
+          <n-button type="primary" :disabled="!selectedCommand" @click="copyCommand">Copy</n-button>
+        </n-space>
+      </template>
+    </n-modal>
 
     <!-- Create Process Modal -->
     <n-modal v-model:show="showCreateModal" preset="dialog" title="Define Process">
@@ -56,7 +101,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, h } from "vue";
+import { ref, onMounted, h, computed } from "vue";
 import { useRouter } from "vue-router";
 import {
   NButton,
@@ -70,10 +115,11 @@ import {
   NSpin,
   NTag,
   NSpace,
+  NEmpty,
   useMessage,
   type DataTableColumns,
 } from "naive-ui";
-import { PhPlus, PhPlay, PhStop, PhArrowsClockwise, PhTrash, PhEye } from "@phosphor-icons/vue";
+import { PhPlus, PhPlay, PhStop, PhArrowsClockwise, PhTrash, PhEye, PhListBullets, PhCodeBlock } from "@phosphor-icons/vue";
 import { useProcessStore, type Process } from "@/stores/processes";
 import { useWebSocket } from "@/composables/useWebSocket";
 
@@ -83,6 +129,9 @@ const message = useMessage();
 const { connect, subscribeStatus } = useWebSocket();
 
 const showCreateModal = ref(false);
+const showCommandModal = ref(false);
+const selectedCommand = ref("");
+const selectedCommandName = ref("");
 const formRef = ref();
 const formData = ref({
   name: "",
@@ -114,6 +163,26 @@ function statusColor(status: string) {
     default:
       return "default";
   }
+}
+
+const commandModalTitle = computed(() =>
+  selectedCommandName.value ? `Command — ${selectedCommandName.value}` : "Command"
+);
+
+async function copyCommand() {
+  if (!selectedCommand.value) return;
+  try {
+    await navigator.clipboard.writeText(selectedCommand.value);
+    message.success("Command copied");
+  } catch {
+    message.error("Failed to copy command");
+  }
+}
+
+function openCommand(row: Process) {
+  selectedCommand.value = row.command;
+  selectedCommandName.value = row.name;
+  showCommandModal.value = true;
 }
 
 const columns: DataTableColumns<Process> = [
@@ -150,30 +219,43 @@ const columns: DataTableColumns<Process> = [
   {
     title: "Context",
     key: "context",
-    width: 100,
-    render: (row) =>
-      h(
-        NTag,
-        { size: "small", bordered: false },
-        { default: () => row.context }
-      ),
+    width: 110,
+    render: (row) => {
+      const context = row.context ?? row.context_type ?? "local";
+      const tagType = context === "docker" ? "info" : "default";
+      return h(NTag, { size: "small", bordered: false, type: tagType }, { default: () => context });
+    },
   },
   {
     title: "Command",
     key: "command",
-    ellipsis: { tooltip: true },
+    render: (row) =>
+      h(
+        NButton,
+        {
+          text: true,
+          class: "command-button",
+          title: row.command,
+          onClick: () => openCommand(row),
+        },
+        {
+          icon: () => h(PhCodeBlock, { weight: "regular" }),
+          default: () => h("span", { class: "command-text" }, row.command),
+        }
+      ),
   },
   {
     title: "Actions",
     key: "actions",
-    width: 200,
+    width: 220,
     render: (row) =>
-      h(NSpace, { size: "small" }, () => [
+      h("div", { class: "action-buttons" }, [
         h(
           NButton,
           {
             size: "small",
             quaternary: true,
+            circle: true,
             title: "View",
             onClick: () => router.push(`/process/${row.name}`),
           },
@@ -185,6 +267,7 @@ const columns: DataTableColumns<Process> = [
             size: "small",
             quaternary: true,
             type: "success",
+            circle: true,
             title: "Start",
             disabled: row.status === "running",
             onClick: () => handleStart(row.name),
@@ -197,6 +280,7 @@ const columns: DataTableColumns<Process> = [
             size: "small",
             quaternary: true,
             type: "warning",
+            circle: true,
             title: "Stop",
             disabled: row.status !== "running",
             onClick: () => handleStop(row.name),
@@ -209,6 +293,7 @@ const columns: DataTableColumns<Process> = [
             size: "small",
             quaternary: true,
             type: "info",
+            circle: true,
             title: "Restart",
             onClick: () => handleRestart(row.name),
           },
@@ -220,6 +305,7 @@ const columns: DataTableColumns<Process> = [
             size: "small",
             quaternary: true,
             type: "error",
+            circle: true,
             title: "Remove",
             onClick: () => handleRemove(row.name),
           },
@@ -309,5 +395,144 @@ onMounted(async () => {
 
 .error-state {
   padding: 1rem 0;
+}
+
+.table-shell {
+  position: relative;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(0, 229, 255, 0.08), rgba(7, 8, 13, 0.02) 55%),
+    var(--n-card-color);
+  border: 1px solid var(--n-border-color);
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.35);
+}
+
+.table-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  pointer-events: none;
+  border: 1px solid rgba(0, 229, 255, 0.14);
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.25rem 0.5rem 0.75rem;
+}
+
+.table-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.title-label {
+  font-family: var(--ds-font-heading);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--n-text-color-3);
+}
+
+.title-sub {
+  font-size: 0.95rem;
+  color: var(--n-text-color-2);
+}
+
+.table-meta {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.empty-table {
+  padding: 1.25rem 0 1.5rem;
+}
+
+.empty-hint {
+  color: var(--n-text-color-3);
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+}
+
+.empty-hint code {
+  background: var(--n-code-color);
+  padding: 0.125rem 0.375rem;
+  border-radius: 3px;
+}
+
+.processes-table :deep(.n-data-table) {
+  background: transparent;
+  border-radius: 10px;
+}
+
+.processes-table :deep(.n-data-table-thead) {
+  background: transparent;
+}
+
+.processes-table :deep(.n-data-table-th) {
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--n-text-color-3);
+}
+
+.processes-table :deep(.n-data-table-td) {
+  font-size: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.action-buttons {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.command-button {
+  font-family: var(--n-font-family-mono);
+  font-size: 0.85rem;
+  max-width: 460px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: 6px;
+  background: var(--n-code-color);
+  border: 1px solid var(--n-border-color);
+}
+
+.command-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-modal {
+  padding: 0.25rem 0 0.5rem;
+  background: linear-gradient(180deg, rgba(0, 229, 255, 0.08), transparent 70%);
+  border-radius: var(--n-border-radius);
+  border: 1px solid rgba(0, 229, 255, 0.12);
+}
+
+.command-code {
+  background: var(--n-code-color);
+  border-radius: var(--n-border-radius);
+  border: 1px solid rgba(0, 229, 255, 0.18);
+  font-family: var(--n-font-family-mono);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>

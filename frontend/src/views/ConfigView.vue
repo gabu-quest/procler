@@ -75,6 +75,39 @@
             </n-card>
           </n-gi>
 
+          <!-- Variables Card -->
+          <n-gi span="2 m:1">
+            <n-card title="Variables" class="vars-card">
+              <template #header-extra>
+                <n-tag :type="varsData.length > 0 ? 'info' : 'default'" size="small">
+                  {{ varsData.length }} vars
+                </n-tag>
+              </template>
+
+              <div v-if="varsData.length === 0" class="vars-empty">
+                <n-empty description="No variables defined" size="small">
+                  <template #extra>
+                    <p class="empty-hint">
+                      Add a <code>vars:</code> block in <code>.procler/config.yaml</code>
+                    </p>
+                  </template>
+                </n-empty>
+              </div>
+
+              <div v-else>
+                <p class="vars-hint">
+                  Use <code>${VAR}</code> in commands, container names, and recipe exec steps.
+                </p>
+                <n-data-table
+                  :columns="varsColumns"
+                  :data="varsData"
+                  :bordered="false"
+                  size="small"
+                />
+              </div>
+            </n-card>
+          </n-gi>
+
           <!-- Changelog Card -->
           <n-gi span="2">
             <n-card title="Changelog" class="changelog-card">
@@ -115,7 +148,7 @@
                   :key="idx"
                   :class="['changelog-entry', getEntryClass(entry)]"
                 >
-                  {{ entry }}
+                  {{ formatEntry(entry) }}
                 </div>
               </div>
             </n-card>
@@ -139,7 +172,7 @@
 </template>
 
 <script setup lang="ts">
-import { h, onMounted } from "vue";
+import { h, onMounted, computed } from "vue";
 import {
   NButton,
   NCard,
@@ -165,9 +198,38 @@ import {
   PhCodeBlock,
 } from "@phosphor-icons/vue";
 import { useConfigStore, type ConfigProcess } from "@/stores/config";
+import { formatChangelogEntry, getChangelogAction, type ChangelogEntry } from "@/utils/changelog";
 
 const store = useConfigStore();
 const message = useMessage();
+
+type ConfigVar = {
+  name: string;
+  value: string;
+};
+
+const varsData = computed<ConfigVar[]>(() => {
+  const vars = store.info?.vars ?? {};
+  return Object.entries(vars).map(([name, value]) => ({
+    name,
+    value,
+  }));
+});
+
+const varsColumns: DataTableColumns<ConfigVar> = [
+  {
+    title: "Name",
+    key: "name",
+    width: 160,
+    render: (row) => h(NTag, { size: "small", bordered: false }, { default: () => row.name }),
+  },
+  {
+    title: "Value",
+    key: "value",
+    ellipsis: { tooltip: true },
+    render: (row) => h(NCode, null, { default: () => row.value }),
+  },
+];
 
 const processColumns: DataTableColumns<ConfigProcess> = [
   { title: "Name", key: "name", width: 150 },
@@ -186,12 +248,17 @@ const processColumns: DataTableColumns<ConfigProcess> = [
   },
 ];
 
-function getEntryClass(entry: string): string {
-  if (entry.includes("EXECUTE")) return "action-execute";
-  if (entry.includes("START")) return "action-start";
-  if (entry.includes("STOP")) return "action-stop";
-  if (entry.includes("CREATE")) return "action-create";
+function getEntryClass(entry: ChangelogEntry): string {
+  const action = getChangelogAction(entry);
+  if (action === "EXECUTE") return "action-execute";
+  if (action === "START") return "action-start";
+  if (action === "STOP") return "action-stop";
+  if (action === "CREATE") return "action-create";
   return "";
+}
+
+function formatEntry(entry: ChangelogEntry): string {
+  return formatChangelogEntry(entry);
 }
 
 async function loadChangelog() {
@@ -273,6 +340,16 @@ onMounted(async () => {
 
 .changelog-empty {
   padding: 1rem 0;
+}
+
+.vars-empty {
+  padding: 1rem 0;
+}
+
+.vars-hint {
+  color: var(--n-text-color-3);
+  font-size: 0.8125rem;
+  margin: 0 0 0.75rem;
 }
 
 .empty-hint {

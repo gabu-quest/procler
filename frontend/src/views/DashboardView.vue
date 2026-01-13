@@ -165,9 +165,9 @@
               :key="idx"
               :class="['activity-item', getActivityClass(entry)]"
             >
-              <PhCheckCircle v-if="entry.includes('EXECUTE')" weight="fill" class="activity-icon" />
-              <PhPlay v-else-if="entry.includes('START')" weight="fill" class="activity-icon" />
-              <PhStop v-else-if="entry.includes('STOP')" weight="fill" class="activity-icon" />
+              <PhCheckCircle v-if="isAction(entry, 'EXECUTE')" weight="fill" class="activity-icon" />
+              <PhPlay v-else-if="isAction(entry, 'START')" weight="fill" class="activity-icon" />
+              <PhStop v-else-if="isAction(entry, 'STOP')" weight="fill" class="activity-icon" />
               <PhPlus v-else weight="fill" class="activity-icon" />
               <span class="activity-text">{{ formatActivity(entry) }}</span>
             </div>
@@ -202,6 +202,7 @@ import { useProcessStore } from "@/stores/processes";
 import { useGroupStore } from "@/stores/groups";
 import { useRecipeStore } from "@/stores/recipes";
 import { useConfigStore } from "@/stores/config";
+import { formatChangelogActivity, getChangelogAction, type ChangelogEntry } from "@/utils/changelog";
 
 const processStore = useProcessStore();
 const groupStore = useGroupStore();
@@ -223,25 +224,20 @@ function statusType(status: string) {
   }
 }
 
-function getActivityClass(entry: string): string {
-  if (entry.includes("EXECUTE")) return "execute";
-  if (entry.includes("START")) return "start";
-  if (entry.includes("STOP")) return "stop";
+function getActivityClass(entry: ChangelogEntry): string {
+  const action = getChangelogAction(entry);
+  if (action === "EXECUTE") return "execute";
+  if (action === "START") return "start";
+  if (action === "STOP") return "stop";
   return "create";
 }
 
-function formatActivity(entry: string): string {
-  // Extract timestamp and action from changelog format
-  // Format: [2024-01-15T10:30:00.000Z] EXECUTE recipe:restart-backend {...}
-  const match = entry.match(/\[([^\]]+)\]\s+(\w+)\s+(.+)/);
-  if (match) {
-    const timestamp = new Date(match[1]);
-    const action = match[2].toLowerCase();
-    const rest = match[3];
-    const timeStr = timestamp.toLocaleTimeString();
-    return `${timeStr} - ${action} ${rest.split("{")[0].trim()}`;
-  }
-  return entry;
+function isAction(entry: ChangelogEntry, action: string): boolean {
+  return getChangelogAction(entry) === action;
+}
+
+function formatActivity(entry: ChangelogEntry): string {
+  return formatChangelogActivity(entry);
 }
 
 async function refreshAll() {

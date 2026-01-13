@@ -44,11 +44,13 @@ async def get_config_info() -> ConfigResponse:
                 "changelog_file": str(changelog_path),
                 "changelog_exists": changelog_path.exists(),
                 "version": config.version,
+                "vars": config.vars,
                 "stats": {
                     "processes": len(config.processes),
                     "groups": len(config.groups),
                     "recipes": len(config.recipes),
                     "snippets": len(config.snippets),
+                    "vars": len(config.vars),
                 },
             },
         )

@@ -12,10 +12,11 @@ export interface Process {
   id: number;
   name: string;
   command: string;
-  context: "local" | "docker";
-  container: string | null;
-  cwd: string | null;
-  tags: string[] | null;
+  context?: "local" | "docker";
+  context_type?: "local" | "docker";
+  container?: string | null;
+  cwd?: string | null;
+  tags?: string[] | null;
   status: "stopped" | "running" | "failed";
   pid: number | null;
   started_at: string | null;
@@ -66,8 +67,9 @@ export const useProcessStore = defineStore("processes", () => {
       const response = await fetch(`/api/processes/${name}`);
       const data = await response.json();
       if (data.success) {
-        currentProcess.value = data.data;
+        currentProcess.value = data.data?.process ?? null;
       } else {
+        currentProcess.value = null;
         error.value = data.error;
       }
     } catch (e) {

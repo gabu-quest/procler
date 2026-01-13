@@ -43,7 +43,11 @@
     </div>
 
     <n-spin :show="store.loading">
-      <n-grid v-if="store.currentProcess" :cols="2" :x-gap="24" :y-gap="24">
+      <div v-if="store.error" class="error-state">
+        <n-alert type="error" :title="store.error" />
+      </div>
+
+      <n-grid v-else-if="store.currentProcess" :cols="2" :x-gap="24" :y-gap="24">
         <n-gi>
           <n-card title="Details">
             <n-descriptions :column="1" label-placement="left" bordered>
@@ -52,7 +56,7 @@
                 <n-code>{{ store.currentProcess.command }}</n-code>
               </n-descriptions-item>
               <n-descriptions-item label="Context">
-                <n-tag size="small">{{ store.currentProcess.context }}</n-tag>
+                <n-tag size="small" :type="contextTagType">{{ contextLabel }}</n-tag>
               </n-descriptions-item>
               <n-descriptions-item v-if="store.currentProcess.container" label="Container">
                 {{ store.currentProcess.container }}
@@ -112,12 +116,19 @@
           </n-card>
         </n-gi>
       </n-grid>
+      <div v-else class="empty-state">
+        <n-empty description="Process details unavailable" size="small">
+          <template #extra>
+            <n-button size="small" @click="store.fetchProcess(processName)">Retry</n-button>
+          </template>
+        </n-empty>
+      </div>
     </n-spin>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
+import { ref, onMounted, onUnmounted, watch, nextTick, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   NButton,
@@ -130,6 +141,8 @@ import {
   NSpace,
   NSpin,
   NCode,
+  NAlert,
+  NEmpty,
   useMessage,
 } from "naive-ui";
 import { PhArrowLeft, PhPlay, PhStop, PhArrowsClockwise } from "@phosphor-icons/vue";
@@ -145,6 +158,11 @@ const { connected, connect, subscribeLogs, unsubscribeLogs, subscribeStatus } = 
 const logViewerRef = ref<HTMLElement | null>(null);
 
 const processName = route.params.name as string;
+const contextLabel = computed(() => {
+  const process = store.currentProcess;
+  return process?.context ?? process?.context_type ?? "local";
+});
+const contextTagType = computed(() => (contextLabel.value === "docker" ? "info" : "default"));
 
 function statusColor(status: string) {
   switch (status) {
@@ -275,6 +293,11 @@ onUnmounted(() => {
 
 .header-left h1 {
   margin: 0;
+}
+
+.error-state,
+.empty-state {
+  padding: 1rem 0;
 }
 
 .logs-card :deep(.n-card__content) {

@@ -1,11 +1,13 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
+import type { ChangelogEntry } from "@/utils/changelog";
 
 export interface ConfigStats {
   processes: number;
   groups: number;
   recipes: number;
   snippets: number;
+  vars?: number;
 }
 
 export interface ConfigInfo {
@@ -16,6 +18,7 @@ export interface ConfigInfo {
   changelog_exists: boolean;
   version: number;
   stats: ConfigStats;
+  vars?: Record<string, string>;
 }
 
 export interface ConfigProcess {
@@ -31,7 +34,7 @@ export interface ConfigProcess {
 export const useConfigStore = defineStore("config", () => {
   const info = ref<ConfigInfo | null>(null);
   const processes = ref<ConfigProcess[]>([]);
-  const changelog = ref<string[]>([]);
+  const changelog = ref<ChangelogEntry[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
 
@@ -77,11 +80,15 @@ export const useConfigStore = defineStore("config", () => {
     loading.value = true;
     error.value = null;
     try {
-      // Use format=raw to get string entries (frontend uses .includes() on them)
       const response = await fetch(`/api/config/changelog?tail=${tail}&format=raw`);
       const data = await response.json();
       if (data.success) {
-        changelog.value = data.data.entries;
+        const entries = Array.isArray(data.data?.entries)
+          ? (data.data.entries as ChangelogEntry[])
+          : [];
+        changelog.value = entries.filter(
+          (entry): entry is ChangelogEntry => entry !== null && entry !== undefined
+        );
       } else {
         error.value = data.error;
       }

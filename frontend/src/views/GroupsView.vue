@@ -78,7 +78,17 @@
                     :type="statusType(groupStatuses[group.name][proc].status)"
                     size="small"
                   >
-                    {{ groupStatuses[group.name][proc].status }}
+                    <template v-if="groupStatuses[group.name][proc].status === 'not_defined'">
+                      <n-tooltip>
+                        <template #trigger>
+                          <span class="status-label">missing in config</span>
+                        </template>
+                        This process exists only in state.db. Add it to config.yaml to include it in groups.
+                      </n-tooltip>
+                    </template>
+                    <template v-else>
+                      {{ statusLabel(groupStatuses[group.name][proc].status) }}
+                    </template>
                   </n-tag>
                   <!-- Linux state warning -->
                   <n-tooltip v-if="groupStatuses[group.name]?.[proc]?.linux_state?.state_code === 'D'">
@@ -195,6 +205,11 @@ function statusType(status: string) {
     default:
       return "default";
   }
+}
+
+function statusLabel(status: string) {
+  if (status === "not_defined") return "missing in config";
+  return status;
 }
 
 function healthType(status: string) {
