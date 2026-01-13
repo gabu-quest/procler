@@ -580,26 +580,37 @@ def status(name: str | None) -> None:
 
 
 @cli.command("list")
-def list_processes() -> None:
+@click.option("--resolve", is_flag=True, help="Show commands with variables substituted")
+def list_processes(resolve: bool) -> None:
     """List all process definitions."""
     from .db import init_database
     from .models import Process
+    from .core.variable_substitution import substitute_vars_from_config
 
     init_database()
     processes = Process.query().all()
 
     process_data = []
     for process in processes:
+        command = process.command
+        daemon_container = getattr(process, "daemon_container", None)
+
+        if resolve:
+            command = substitute_vars_from_config(command)
+            if daemon_container:
+                daemon_container = substitute_vars_from_config(daemon_container)
+
         process_data.append(
             {
                 "id": process._id,
                 "name": process.name,
                 "display_name": process.display_name,
-                "command": process.command,
+                "command": command,
                 "context_type": process.context_type,
                 "container_name": process.container_name,
                 "cwd": process.cwd,
                 "tags": process.tags or [],
+                "daemon_container": daemon_container,
             }
         )
 
@@ -619,6 +630,11 @@ def list_processes() -> None:
 @click.option("--cwd", help="Working directory")
 @click.option("--display-name", help="Human-friendly name")
 @click.option("--tags", help="Comma-separated tags")
+@click.option("--daemon-mode", is_flag=True, help="Enable daemon mode (process forks to background)")
+@click.option("--daemon-pattern", help="Process name pattern to match daemon (e.g., 'msgd')")
+@click.option("--daemon-pidfile", help="Path to daemon pidfile")
+@click.option("--daemon-container", help="Container name for daemon detection (use with docker exec commands)")
+@click.option("--adopt-existing", is_flag=True, help="Adopt existing daemon if running")
 def define(
     name: str,
     cmd: str,
@@ -627,6 +643,11 @@ def define(
     cwd: str | None,
     display_name: str | None,
     tags: str | None,
+    daemon_mode: bool,
+    daemon_pattern: str | None,
+    daemon_pidfile: str | None,
+    daemon_container: str | None,
+    adopt_existing: bool,
 ) -> None:
     """Define a new process."""
     from .db import init_database
@@ -658,6 +679,27 @@ def define(
 
     tag_list = [t.strip() for t in tags.split(",")] if tags else None
 
+    # Validate daemon mode options
+    if daemon_mode and not daemon_pattern and not daemon_pidfile:
+        output_json(
+            error_response(
+                "daemon_mode requires either --daemon-pattern or --daemon-pidfile",
+                error_code="invalid_daemon_config",
+                suggestion="Use --daemon-pattern <pattern> to specify how to find the daemon",
+            )
+        )
+        sys.exit(1)
+
+    if adopt_existing and not daemon_mode:
+        output_json(
+            error_response(
+                "--adopt-existing requires --daemon-mode",
+                error_code="invalid_daemon_config",
+                suggestion="Add --daemon-mode to enable daemon mode",
+            )
+        )
+        sys.exit(1)
+
     process = Process(
         name=name,
         command=cmd,
@@ -666,24 +708,29 @@ def define(
         container_name=container,
         cwd=cwd,
         tags=tag_list,
+        daemon_mode=daemon_mode,
+        daemon_match_pattern=daemon_pattern,
+        daemon_pidfile=daemon_pidfile,
+        daemon_container=daemon_container,
+        adopt_existing=adopt_existing,
         created_at=datetime.now().isoformat(),
         updated_at=datetime.now().isoformat(),
     )
     process.save()
 
-    output_json(
-        success_response(
-            {
-                "action": "created",
-                "process": {
-                    "id": process._id,
-                    "name": process.name,
-                    "command": process.command,
-                    "context_type": process.context_type,
-                },
-            }
-        )
-    )
+    process_info = {
+        "id": process._id,
+        "name": process.name,
+        "command": process.command,
+        "context_type": process.context_type,
+    }
+    if daemon_mode:
+        process_info["daemon_mode"] = True
+        process_info["daemon_match_pattern"] = daemon_pattern
+        process_info["daemon_pidfile"] = daemon_pidfile
+        process_info["adopt_existing"] = adopt_existing
+
+    output_json(success_response({"action": "created", "process": process_info}))
 
 
 @cli.command()

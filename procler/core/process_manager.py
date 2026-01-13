@@ -15,6 +15,8 @@ from .context_base import ExecResult, ExecutionContext, ProcessHandle
 from .context_docker import get_docker_context, is_docker_available
 from .context_local import LocalContext, get_local_context
 from .events import EVENT_LOG_ENTRY, EVENT_STATUS_CHANGE, get_event_bus
+from .daemon_detector import get_daemon_detector
+from .variable_substitution import substitute_vars_from_config
 
 # Default max log entries per process
 DEFAULT_MAX_LOGS = 10000
@@ -245,6 +247,51 @@ class ProcessManager:
                     },
                 }
 
+        # Daemon mode: Check if we should adopt an existing daemon
+        if getattr(process, "daemon_mode", False) and getattr(
+            process, "adopt_existing", False
+        ):
+            detector = get_daemon_detector()
+            # Determine container for daemon detection
+            # Use daemon_container if set, otherwise fall back to container_name for docker context
+            raw_container = getattr(process, "daemon_container", None) or (
+                process.container_name if process.context_type == "docker" else None
+            )
+            # Substitute vars in container name (e.g., ${SIM_CONTAINER})
+            container = substitute_vars_from_config(raw_container) if raw_container else None
+            # Try to find existing daemon
+            existing_pid = await detector.find_daemon_pid(
+                pattern=getattr(process, "daemon_match_pattern", None),
+                pidfile=getattr(process, "daemon_pidfile", None),
+                container=container,
+            )
+            if existing_pid:
+                # Adopt the existing daemon
+                process.status = ProcessStatus.RUNNING.value
+                process.pid = existing_pid
+                process.started_at = datetime.now().isoformat()
+                process.adopted = True
+                process.save()
+
+                append_changelog(
+                    action=ChangelogAction.START,
+                    entity_type="process",
+                    entity_name=name,
+                    details={
+                        "pid": existing_pid,
+                        "adopted": True,
+                        "context": process.context_type,
+                    },
+                )
+
+                return {
+                    "success": True,
+                    "data": {
+                        "status": "adopted",
+                        "process": self._process_to_dict(process),
+                    },
+                }
+
         # Get the appropriate context
         try:
             context = self._get_context(process.context_type)
@@ -276,10 +323,13 @@ class ProcessManager:
         process.save()
 
         try:
+            # Substitute config vars in command (e.g., ${SIM_CONTAINER})
+            resolved_command = substitute_vars_from_config(process.command)
+
             # Start the process (Docker context needs container_name)
             if process.context_type == "docker":
                 handle = await context.start_process(
-                    command=process.command,
+                    command=resolved_command,
                     cwd=process.cwd,
                     env=process.env,
                     on_stdout=self._log_callback(process._id, "stdout"),
@@ -289,7 +339,7 @@ class ProcessManager:
                 )
             else:
                 handle = await context.start_process(
-                    command=process.command,
+                    command=resolved_command,
                     cwd=process.cwd,
                     env=process.env,
                     on_stdout=self._log_callback(process._id, "stdout"),
@@ -297,9 +347,31 @@ class ProcessManager:
                     on_exit=self._exit_callback(process),
                 )
 
+            # Daemon mode: Wait for fork and find real daemon PID
+            daemon_pid = handle.pid
+            if getattr(process, "daemon_mode", False):
+                pattern = getattr(process, "daemon_match_pattern", None)
+                pidfile = getattr(process, "daemon_pidfile", None)
+                if pattern or pidfile:
+                    detector = get_daemon_detector()
+                    # Use daemon_container if set, otherwise fall back to container_name
+                    raw_container = getattr(process, "daemon_container", None) or (
+                        process.container_name if process.context_type == "docker" else None
+                    )
+                    # Substitute vars in container name (e.g., ${SIM_CONTAINER})
+                    container = substitute_vars_from_config(raw_container) if raw_container else None
+                    # Wait for daemon to fork and find its real PID
+                    found_pid = await detector.wait_for_fork(
+                        pattern=pattern or "",
+                        container=container,
+                        timeout=5.0,
+                    )
+                    if found_pid:
+                        daemon_pid = found_pid
+
             # Update process state
             process.status = ProcessStatus.RUNNING.value
-            process.pid = handle.pid
+            process.pid = daemon_pid
             process.started_at = datetime.now().isoformat()
             process.exit_code = None
             process.error_message = None
@@ -380,7 +452,18 @@ class ProcessManager:
 
         try:
             exit_code = 0
-            if process.pid and self._is_pid_running(process.pid):
+
+            # Daemon mode with container: Kill daemon inside container
+            raw_daemon_container = getattr(process, "daemon_container", None)
+            # Substitute vars in container name (e.g., ${SIM_CONTAINER})
+            daemon_container = substitute_vars_from_config(raw_daemon_container) if raw_daemon_container else None
+            if getattr(process, "daemon_mode", False) and daemon_container and process.pid:
+                exit_code = await self._kill_daemon_in_container(
+                    container=daemon_container,
+                    pid=process.pid,
+                    timeout=timeout,
+                )
+            elif process.pid and self._is_pid_running(process.pid):
                 # PID is running - kill directly (most reliable across CLI invocations)
                 exit_code = await self._kill_pid(process.pid, timeout=timeout)
             elif handle:
@@ -535,6 +618,39 @@ class ProcessManager:
         if process.status != ProcessStatus.RUNNING.value:
             return
 
+        # Daemon mode: Use daemon detector to find/verify PID
+        if getattr(process, "daemon_mode", False):
+            pattern = getattr(process, "daemon_match_pattern", None)
+            pidfile = getattr(process, "daemon_pidfile", None)
+            if pattern or pidfile:
+                detector = get_daemon_detector()
+                # Use daemon_container if set, otherwise fall back to container_name
+                raw_container = getattr(process, "daemon_container", None) or (
+                    process.container_name if process.context_type == "docker" else None
+                )
+                # Substitute vars in container name (e.g., ${SIM_CONTAINER})
+                container = substitute_vars_from_config(raw_container) if raw_container else None
+                found_pid = await detector.find_daemon_pid(
+                    pattern=pattern,
+                    pidfile=pidfile,
+                    container=container,
+                )
+                if found_pid:
+                    # Daemon is running, update PID if changed
+                    if process.pid != found_pid:
+                        process.pid = found_pid
+                        process.save()
+                    return
+                else:
+                    # Daemon not found - mark as stopped
+                    process.status = ProcessStatus.STOPPED.value
+                    process.pid = None
+                    if process._id in self._handles:
+                        del self._handles[process._id]
+                    process.save()
+                    return
+
+        # Non-daemon mode: Use handle or PID check
         handle = self._handles.get(process._id)
         if handle:
             # We have a handle, check via context
@@ -599,6 +715,48 @@ class ProcessManager:
         except ProcessLookupError:
             return 0
         except PermissionError:
+            return -1
+
+    async def _kill_daemon_in_container(
+        self, container: str, pid: int, timeout: float = 10.0
+    ) -> int:
+        """Kill a daemon process inside a Docker container."""
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        try:
+            # Send SIGTERM to daemon
+            cmd = f"docker exec {container} kill -TERM {pid}"
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await proc.communicate()
+
+            # Wait for daemon to exit
+            detector = get_daemon_detector()
+            for _ in range(int(timeout * 10)):
+                await asyncio.sleep(0.1)
+                if not await detector.is_pid_running(pid, container=container):
+                    logger.debug(f"Daemon PID {pid} in {container} stopped gracefully")
+                    return 0
+
+            # Force kill if still running
+            cmd = f"docker exec {container} kill -KILL {pid}"
+            proc = await asyncio.create_subprocess_shell(
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await proc.communicate()
+            await asyncio.sleep(0.1)
+            logger.debug(f"Daemon PID {pid} in {container} force killed")
+            return -9
+
+        except Exception as e:
+            logger.error(f"Error killing daemon {pid} in {container}: {e}")
             return -1
 
     def _process_to_dict(self, process: Process) -> dict[str, Any]:

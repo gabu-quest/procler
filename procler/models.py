@@ -51,12 +51,20 @@ class Process(SQLerModel):
     created_at: str | None = None
     updated_at: str | None = None
 
+    # Daemon mode configuration
+    daemon_mode: bool = False
+    daemon_match_pattern: str | None = None
+    daemon_pidfile: str | None = None
+    daemon_container: str | None = None  # Container for daemon detection
+    adopt_existing: bool = False
+
     # Runtime state (stored with the process)
     status: str = "stopped"
     pid: int | None = None
     started_at: str | None = None
     exit_code: int | None = None
     error_message: str | None = None
+    adopted: bool = False  # Was this process adopted from an existing daemon?
 
     def get_context_type(self) -> ContextType:
         return ContextType(self.context_type)

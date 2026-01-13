@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ContextType(str, Enum):
@@ -76,6 +76,13 @@ class ProcessDef(BaseModel):
     healthcheck: HealthCheckDef | None = None
     depends_on: list[str | DependencyDef] = Field(default_factory=list)
 
+    # Daemon mode configuration
+    daemon_mode: bool = False
+    daemon_match_pattern: str | None = None
+    daemon_pidfile: str | None = None
+    daemon_container: str | None = None  # Container to detect daemon in (for docker exec commands)
+    adopt_existing: bool = False
+
     def get_dependencies(self) -> list[DependencyDef]:
         """Get normalized dependency list."""
         deps = []
@@ -92,6 +99,18 @@ class ProcessDef(BaseModel):
         """Validate that docker context has container name."""
         # Note: This runs per-field, full validation in model_validator
         return v
+
+    @model_validator(mode="after")
+    def validate_daemon_mode(self):
+        """Validate daemon mode configuration."""
+        if self.daemon_mode:
+            if not self.daemon_match_pattern and not self.daemon_pidfile:
+                raise ValueError(
+                    "daemon_mode requires either daemon_match_pattern or daemon_pidfile"
+                )
+        if self.adopt_existing and not self.daemon_mode:
+            raise ValueError("adopt_existing requires daemon_mode=true")
+        return self
 
 
 class GroupDef(BaseModel):
@@ -228,6 +247,7 @@ class SnippetDef(BaseModel):
 class ProclerConfig(BaseModel):
     """Root configuration object."""
     version: int = 1
+    vars: dict[str, str] = Field(default_factory=dict)  # Variable substitution
     processes: dict[str, ProcessDef] = Field(default_factory=dict)
     groups: dict[str, GroupDef] = Field(default_factory=dict)
     recipes: dict[str, RecipeDef] = Field(default_factory=dict)
