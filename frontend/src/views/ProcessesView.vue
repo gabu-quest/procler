@@ -232,6 +232,8 @@ const columns: DataTableColumns<Process> = [
   {
     title: "Command",
     key: "command",
+    width: 420,
+    ellipsis: { tooltip: true },
     render: (row) =>
       h(
         NButton,
@@ -475,6 +477,10 @@ onMounted(async () => {
   border-radius: 10px;
 }
 
+.processes-table :deep(.n-data-table-base-table) {
+  table-layout: fixed;
+}
+
 .processes-table :deep(.n-data-table-thead) {
   background: transparent;
 }
@@ -512,33 +518,41 @@ onMounted(async () => {
 .command-button {
   font-family: var(--n-font-family-mono);
   font-size: 0.85rem;
-  max-width: 460px;
+  width: 100%;
   display: inline-flex;
+  justify-content: flex-start;
   align-items: center;
   gap: 0.35rem;
   padding: 0.15rem 0.35rem;
   border-radius: 6px;
   background: var(--n-code-color);
   border: 1px solid var(--n-border-color);
+  overflow: hidden;
+}
+
+.command-button :deep(.n-button__content) {
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .command-text {
+  display: block;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .command-modal {
-  padding: 0.25rem 0 0.5rem;
-  background: linear-gradient(180deg, rgba(0, 229, 255, 0.08), transparent 70%);
-  border-radius: var(--n-border-radius);
-  border: 1px solid rgba(0, 229, 255, 0.12);
+  padding: 0;
+  background: transparent;
+  border: none;
 }
 
 .command-code {
   background: var(--n-code-color);
   border-radius: var(--n-border-radius);
-  border: 1px solid rgba(0, 229, 255, 0.18);
+  border: 1px solid var(--n-border-color);
   font-family: var(--n-font-family-mono);
   font-size: 0.9rem;
   line-height: 1.6;
