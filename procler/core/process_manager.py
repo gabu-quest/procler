@@ -3,12 +3,11 @@
 import asyncio
 import logging
 import os
+import re
 import shlex
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 from sqler.query import SQLerField as F
 
@@ -21,6 +20,8 @@ from .context_local import get_local_context
 from .daemon_detector import get_daemon_detector
 from .events import EVENT_LOG_ENTRY, EVENT_STATUS_CHANGE, get_event_bus
 from .variable_substitution import substitute_vars_from_config
+
+logger = logging.getLogger(__name__)
 
 # Default max log entries per process
 DEFAULT_MAX_LOGS = 10000
@@ -148,8 +149,6 @@ def get_log_file_path(process_name: str) -> str:
 
 def extract_docker_exec_user(command: str) -> str | None:
     """Extract the -u/--user value from a docker exec command."""
-    import re
-
     # Match -u <user> or --user <user> or --user=<user>
     match = re.search(r"(?:-u|--user)[=\s]+([^\s]+)", command)
     return match.group(1) if match else None
@@ -198,29 +197,25 @@ async def read_log_file_from_container(container: str, log_path: str, tail: int 
 def wrap_command_with_log_redirect(command: str, log_path: str) -> str:
     """Wrap a command to redirect stdout/stderr to a log file.
 
-    For bash -c commands, we inject the redirect inside the quoted command.
+    For shell -c commands (bash, fish, sh, zsh), we inject the redirect inside the quoted command.
     For other commands, we append the redirect.
     """
     # Quote the log path to prevent shell injection
     safe_log_path = shlex.quote(log_path)
 
-    # Check if this is a bash -c "..." pattern
-    if 'bash -c "' in command or "bash -c '" in command:
-        # Find the inner command and add redirect there
-        # Pattern: ... bash -c "inner_command"
-        import re
-
-        # Match bash -c followed by quoted string
-        match = re.search(r'(bash -c ["\'])(.+?)(["\'])(\s*)$', command)
-        if match:
-            prefix = command[: match.start()] + match.group(1)
-            inner_cmd = match.group(2)
-            quote = match.group(3)
-            suffix = match.group(4)
-            # Add redirect to inner command (truncate on start with >)
-            # Inside bash -c, strip outer quotes from safe_log_path since we're already quoted
-            inner_safe_path = safe_log_path[1:-1] if safe_log_path.startswith("'") else safe_log_path
-            return f"{prefix}{inner_cmd} > {inner_safe_path} 2>&1{quote}{suffix}"
+    # Check if this is a shell -c "..." pattern (bash, fish, sh, zsh)
+    # Pattern: (shell) -c (quote)(command)(quote)
+    shell_pattern = r'((bash|fish|sh|zsh) -c ["\'])(.+?)(["\'])(\s*)$'
+    match = re.search(shell_pattern, command)
+    if match:
+        prefix = command[: match.start()] + match.group(1)
+        inner_cmd = match.group(3)
+        quote = match.group(4)
+        suffix = match.group(5)
+        # Add redirect to inner command (truncate on start with >)
+        # Inside shell -c, strip outer quotes from safe_log_path since we're already quoted
+        inner_safe_path = safe_log_path[1:-1] if safe_log_path.startswith("'") else safe_log_path
+        return f"{prefix}{inner_cmd} > {inner_safe_path} 2>&1{quote}{suffix}"
 
     # For simple commands, just append redirect
     return f"{command} > {safe_log_path} 2>&1"
