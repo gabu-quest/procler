@@ -1,7 +1,10 @@
 <template>
   <div class="dashboard-view">
     <div class="page-header">
-      <h1>Dashboard</h1>
+      <div class="header-title">
+        <img src="/procler.png" alt="Procler logo" class="dashboard-logo" />
+        <h1>Dashboard</h1>
+      </div>
       <n-button @click="refreshAll" :loading="loading">
         <template #icon>
           <PhArrowsClockwise />
@@ -268,6 +271,19 @@ onMounted(refreshAll);
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dashboard-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.25), 0 10px 24px rgba(0, 0, 0, 0.35);
 }
 
 .page-header h1 {
