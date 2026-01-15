@@ -1,11 +1,17 @@
 """WebSocket handler for real-time updates."""
 
 import json
+import logging
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from ...core.events import EVENT_LOG_ENTRY, EVENT_STATUS_CHANGE, get_event_bus
+from ...core.log_tailer import get_log_tailer
+from ...db import init_database
+from ...models import Process
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -28,16 +34,20 @@ class ConnectionManager:
         await websocket.accept()
         self.active_connections.append(websocket)
 
-    def disconnect(self, websocket: WebSocket) -> None:
+    async def disconnect(self, websocket: WebSocket) -> None:
         """Remove a WebSocket connection and all its subscriptions."""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+
+        # Track which processes need tailer cleanup
+        processes_to_check: list[int] = []
 
         # Remove from all log subscriptions
         for process_id in list(self.log_subscriptions.keys()):
             self.log_subscriptions[process_id].discard(websocket)
             if not self.log_subscriptions[process_id]:
                 del self.log_subscriptions[process_id]
+                processes_to_check.append(process_id)
 
         # Remove from all status subscriptions
         for process_id in list(self.status_subscriptions.keys()):
@@ -48,18 +58,49 @@ class ConnectionManager:
         # Remove from global subscriptions
         self.global_status_subscriptions.discard(websocket)
 
-    def subscribe_logs(self, websocket: WebSocket, process_id: int) -> None:
+        # Stop tailers for processes with no remaining subscribers
+        for process_id in processes_to_check:
+            await self._stop_tailing_if_needed(process_id)
+
+    async def subscribe_logs(self, websocket: WebSocket, process_id: int) -> None:
         """Subscribe to log updates for a specific process."""
+        is_first_subscriber = process_id not in self.log_subscriptions
+
         if process_id not in self.log_subscriptions:
             self.log_subscriptions[process_id] = set()
         self.log_subscriptions[process_id].add(websocket)
 
-    def unsubscribe_logs(self, websocket: WebSocket, process_id: int) -> None:
+        # Start tailing if this is the first subscriber for a daemon process
+        if is_first_subscriber:
+            await self._start_tailing_if_needed(process_id)
+
+    async def unsubscribe_logs(self, websocket: WebSocket, process_id: int) -> None:
         """Unsubscribe from log updates for a specific process."""
         if process_id in self.log_subscriptions:
             self.log_subscriptions[process_id].discard(websocket)
             if not self.log_subscriptions[process_id]:
                 del self.log_subscriptions[process_id]
+                # Stop tailing when no more subscribers
+                await self._stop_tailing_if_needed(process_id)
+
+    async def _start_tailing_if_needed(self, process_id: int) -> None:
+        """Start log file tailing if the process has a log file."""
+        try:
+            init_database()
+            process = Process.from_id(process_id)
+            if process and getattr(process, "log_file", None):
+                tailer = get_log_tailer()
+                await tailer.start_tailing(process)
+        except Exception as e:
+            logger.debug(f"Error starting tailer for process {process_id}: {e}")
+
+    async def _stop_tailing_if_needed(self, process_id: int) -> None:
+        """Stop log file tailing when no subscribers remain."""
+        try:
+            tailer = get_log_tailer()
+            await tailer.stop_tailing(process_id)
+        except Exception as e:
+            logger.debug(f"Error stopping tailer for process {process_id}: {e}")
 
     def subscribe_status(self, websocket: WebSocket, process_id: int | None = None) -> None:
         """Subscribe to status updates for a specific process or all processes."""
@@ -114,14 +155,14 @@ class ConnectionManager:
 
         # Clean up disconnected sockets
         for ws in disconnected:
-            self.disconnect(ws)
+            await self.disconnect(ws)
 
     async def send_personal(self, websocket: WebSocket, message: dict) -> None:
         """Send a message to a specific WebSocket."""
         try:
             await websocket.send_json(message)
         except Exception:
-            self.disconnect(websocket)
+            await self.disconnect(websocket)
 
 
 # Global connection manager instance
@@ -210,7 +251,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         {"type": "error", "message": "process_id required for subscribe_logs"},
                     )
                 else:
-                    manager.subscribe_logs(websocket, process_id)
+                    await manager.subscribe_logs(websocket, process_id)
                     await manager.send_personal(
                         websocket,
                         {
@@ -227,7 +268,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         {"type": "error", "message": "process_id required for unsubscribe_logs"},
                     )
                 else:
-                    manager.unsubscribe_logs(websocket, process_id)
+                    await manager.unsubscribe_logs(websocket, process_id)
                     await manager.send_personal(
                         websocket,
                         {
@@ -258,4 +299,4 @@ async def websocket_endpoint(websocket: WebSocket):
                 )
 
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        await manager.disconnect(websocket)
