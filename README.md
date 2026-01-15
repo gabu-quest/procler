@@ -1,6 +1,8 @@
 # Procler
 
-<img src="frontend/public/procler.png" alt="Procler logo" width="48" height="48" />
+<p align="center">
+  <img src="procler.png" alt="Procler logo" width="160" height="160" />
+</p>
 
 **A process manager where Claude Code is a first-class citizen.**
 

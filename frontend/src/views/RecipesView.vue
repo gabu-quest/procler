@@ -79,45 +79,6 @@
             </div>
 
             <!-- Steps -->
-            <div v-if="recipeDetails[recipe.name]" class="steps-panel">
-              <n-button
-                text
-                type="primary"
-                size="small"
-                @click="toggleSteps(recipe.name)"
-                class="load-steps-btn"
-              >
-                <template #icon>
-                  <PhCaretDown :class="['caret-icon', { open: expandedSteps[recipe.name] }]" />
-                </template>
-                {{ expandedSteps[recipe.name] ? "Hide steps" : "Show steps" }}
-              </n-button>
-
-              <div v-show="expandedSteps[recipe.name]" class="step-list">
-                <div
-                  v-for="(step, idx) in recipeDetails[recipe.name].steps"
-                  :key="idx"
-                  class="step-item"
-                >
-                  <span class="step-number">{{ idx + 1 }}</span>
-                  <span class="step-action">{{ formatStep(step) }}</span>
-                </div>
-              </div>
-            </div>
-
-            <n-button
-              v-else
-              text
-              type="primary"
-              size="small"
-              @click="loadRecipeDetails(recipe.name)"
-              class="load-steps-btn"
-            >
-              <template #icon>
-                <PhCaretDown />
-              </template>
-              Show steps
-            </n-button>
           </n-card>
         </n-gi>
       </n-grid>
@@ -183,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import {
   NButton,
   NCard,
@@ -204,60 +165,21 @@ import {
   PhListNumbers,
   PhWarning,
   PhArrowRight,
-  PhCaretDown,
   PhCheckCircle,
   PhXCircle,
 } from "@phosphor-icons/vue";
-import { useRecipeStore, type RecipeDetail } from "@/stores/recipes";
+import { useRecipeStore } from "@/stores/recipes";
 
 const store = useRecipeStore();
 const message = useMessage();
 
 const isDryRun = ref(false);
 const showResultModal = ref(false);
-const recipeDetails = reactive<Record<string, RecipeDetail>>({});
-const expandedSteps = reactive<Record<string, boolean>>({});
-
 const resultModalTitle = computed(() => {
   if (!store.lastRunResult) return "";
   const prefix = store.lastRunResult.dry_run ? "Preview: " : "Result: ";
   return prefix + store.lastRunResult.recipe;
 });
-
-function formatStep(step: Record<string, unknown>): string {
-  // Format step for display
-  const keys = Object.keys(step);
-  if (keys.includes("start")) return `start ${step.start}`;
-  if (keys.includes("stop")) return `stop ${step.stop}${step.ignore_error ? " (ignore errors)" : ""}`;
-  if (keys.includes("restart")) return `restart ${step.restart}`;
-  if (keys.includes("group_start")) return `start group ${step.group_start}`;
-  if (keys.includes("group_stop")) return `stop group ${step.group_stop}`;
-  if (keys.includes("wait")) return `wait ${step.wait}`;
-  if (keys.includes("exec")) {
-    let s = `exec "${step.exec}"`;
-    if (step.container) s += ` (docker:${step.container})`;
-    if (step.ignore_error) s += " (ignore errors)";
-    return s;
-  }
-  return JSON.stringify(step);
-}
-
-async function loadRecipeDetails(name: string) {
-  try {
-    const response = await fetch(`/api/recipes/${name}`);
-    const data = await response.json();
-    if (data.success) {
-      recipeDetails[name] = data.data.recipe;
-      expandedSteps[name] = true;
-    }
-  } catch (e) {
-    console.error("Failed to load recipe details:", e);
-  }
-}
-
-function toggleSteps(name: string) {
-  expandedSteps[name] = !expandedSteps[name];
-}
 
 async function handleDryRun(name: string) {
   isDryRun.value = true;
@@ -342,24 +264,6 @@ onMounted(() => {
   margin-bottom: 1rem;
 }
 
-.steps-panel {
-  margin-top: 0.5rem;
-}
-
-.caret-icon {
-  transition: transform 0.2s ease;
-}
-
-.caret-icon.open {
-  transform: rotate(180deg);
-}
-
-.step-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
 .step-item,
 .result-step {
   display: flex;
@@ -388,11 +292,6 @@ onMounted(() => {
   font-family: var(--n-font-family-mono);
   font-size: 0.8125rem;
   flex: 1;
-}
-
-.load-steps-btn {
-  margin-top: 0.5rem;
-  color: var(--n-primary-color);
 }
 
 /* Result modal styles */
