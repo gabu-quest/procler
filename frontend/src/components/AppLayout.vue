@@ -47,6 +47,7 @@ import {
   PhListChecks,
   PhCodeBlock,
   PhGear,
+  PhInfo,
   PhPlugsConnected,
   PhPlugs,
   PhCircleNotch,
@@ -75,6 +76,7 @@ const activeKey = computed(() => {
   if (route.path.startsWith("/recipes")) return "recipes";
   if (route.path.startsWith("/snippets")) return "snippets";
   if (route.path.startsWith("/config")) return "config";
+  if (route.path.startsWith("/about")) return "about";
   return "dashboard";
 });
 
@@ -109,6 +111,11 @@ const menuOptions: MenuOption[] = [
     key: "config",
     icon: () => h(PhGear, { weight: "regular" }),
   },
+  {
+    label: "About",
+    key: "about",
+    icon: () => h(PhInfo, { weight: "regular" }),
+  },
 ];
 
 function handleMenuClick(key: string) {
@@ -119,6 +126,7 @@ function handleMenuClick(key: string) {
     recipes: "/recipes",
     snippets: "/snippets",
     config: "/config",
+    about: "/about",
   };
   router.push(routes[key] || "/");
 }

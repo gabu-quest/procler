@@ -36,6 +36,11 @@ const routes = [
     name: "config",
     component: () => import("@/views/ConfigView.vue"),
   },
+  {
+    path: "/about",
+    name: "about",
+    component: () => import("@/views/AboutView.vue"),
+  },
 ];
 
 const router = createRouter({

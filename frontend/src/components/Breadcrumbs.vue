@@ -43,6 +43,7 @@ const routeLabels: Record<string, string> = {
   "/recipes": "Recipes",
   "/snippets": "Snippets",
   "/config": "Config",
+  "/about": "About",
 };
 
 const crumbs = computed<Breadcrumb[]>(() => {

@@ -19,6 +19,7 @@ export function useKeyboardShortcuts() {
     { key: "g r", description: "Go to Recipes", handler: () => router.push("/recipes") },
     { key: "g s", description: "Go to Snippets", handler: () => router.push("/snippets") },
     { key: "g c", description: "Go to Config", handler: () => router.push("/config") },
+    { key: "g a", description: "Go to About", handler: () => router.push("/about") },
     { key: "?", description: "Show keyboard shortcuts", handler: () => { showHelp.value = true; } },
     { key: "Escape", description: "Close dialogs", handler: () => { showHelp.value = false; } },
   ];
