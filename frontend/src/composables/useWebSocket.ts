@@ -3,7 +3,11 @@ import { useProcessStore } from "@/stores/processes";
 
 type WebSocketMessage =
   | { type: "log"; process_id: number; data: { timestamp: string; stream: "stdout" | "stderr"; line: string } }
-  | { type: "status"; process_id: number; data: { status: string; pid: number | null } }
+  | {
+    type: "status";
+    process_id: number;
+    data: { status: string; pid: number | null; linux_state?: Process["linux_state"]; warning?: string | null };
+  }
   | { type: "subscribed"; action: string; process_id?: number }
   | { type: "unsubscribed"; action: string; process_id?: number }
   | { type: "pong" }
@@ -45,7 +49,9 @@ function handleMessage(msg: WebSocketMessage) {
       processStore.updateProcessStatus(
         msg.process_id,
         msg.data.status as "stopped" | "running" | "failed",
-        msg.data.pid
+        msg.data.pid,
+        msg.data.linux_state ?? undefined,
+        msg.data.warning ?? undefined
       );
       break;
 

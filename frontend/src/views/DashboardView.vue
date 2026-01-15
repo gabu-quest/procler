@@ -85,9 +85,18 @@
             >
               <div :class="['status-dot', proc.status]" />
               <span class="process-name">{{ proc.name }}</span>
-              <n-tag :type="statusType(proc.status)" size="small">
-                {{ proc.status }}
-              </n-tag>
+              <div class="status-tags">
+                <n-tag :type="statusType(proc.status)" size="small">
+                  {{ proc.status }}
+                </n-tag>
+                <n-tag
+                  v-if="linuxStateLabel(proc.linux_state?.state_code, proc.linux_state?.state_name)"
+                  :type="linuxStateType(proc.linux_state?.state_code)"
+                  size="small"
+                >
+                  {{ linuxStateLabel(proc.linux_state?.state_code, proc.linux_state?.state_name) }}
+                </n-tag>
+              </div>
             </div>
             <div v-if="processStore.processes.length > 8" class="more-indicator">
               +{{ processStore.processes.length - 8 }} more
@@ -225,6 +234,27 @@ function statusType(status: string) {
     default:
       return "default";
   }
+}
+
+function linuxStateType(code?: string) {
+  switch (code) {
+    case "D":
+    case "Z":
+      return "error";
+    case "T":
+    case "t":
+      return "warning";
+    case "S":
+    case "I":
+      return "info";
+    default:
+      return "default";
+  }
+}
+
+function linuxStateLabel(code?: string, name?: string) {
+  if (!code || !name || code === "R") return "";
+  return `${code} ${name}`;
 }
 
 function getActivityClass(entry: ChangelogEntry): string {
@@ -447,6 +477,13 @@ onMounted(refreshAll);
   flex: 1;
   font-family: var(--n-font-family-mono);
   font-size: 0.875rem;
+}
+
+.status-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
 }
 
 .more-indicator {

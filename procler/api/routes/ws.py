@@ -1,5 +1,6 @@
 """WebSocket handler for real-time updates."""
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -8,12 +9,14 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from ...core.events import EVENT_LOG_ENTRY, EVENT_STATUS_CHANGE, get_event_bus
 from ...core.log_tailer import get_log_tailer
+from ...core.process_manager import get_linux_process_state
 from ...db import init_database
 from ...models import Process
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+STATUS_POLL_INTERVAL = 5.0
 
 
 class ConnectionManager:
@@ -28,6 +31,8 @@ class ConnectionManager:
         self.status_subscriptions: dict[int, set[WebSocket]] = {}
         # Global status subscriptions (all process changes)
         self.global_status_subscriptions: set[WebSocket] = set()
+        # Status pollers to refresh linux_state in real time
+        self.status_pollers: dict[WebSocket, asyncio.Task] = {}
 
     async def connect(self, websocket: WebSocket) -> None:
         """Accept a new WebSocket connection."""
@@ -38,6 +43,10 @@ class ConnectionManager:
         """Remove a WebSocket connection and all its subscriptions."""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+
+        poller = self.status_pollers.pop(websocket, None)
+        if poller:
+            poller.cancel()
 
         # Track which processes need tailer cleanup
         processes_to_check: list[int] = []
@@ -110,6 +119,7 @@ class ConnectionManager:
             if process_id not in self.status_subscriptions:
                 self.status_subscriptions[process_id] = set()
             self.status_subscriptions[process_id].add(websocket)
+        self._ensure_status_poller(websocket)
 
     def unsubscribe_status(self, websocket: WebSocket, process_id: int | None = None) -> None:
         """Unsubscribe from status updates."""
@@ -119,6 +129,10 @@ class ConnectionManager:
             self.status_subscriptions[process_id].discard(websocket)
             if not self.status_subscriptions[process_id]:
                 del self.status_subscriptions[process_id]
+        if not self._has_status_subscription(websocket):
+            poller = self.status_pollers.pop(websocket, None)
+            if poller:
+                poller.cancel()
 
     async def broadcast_log(self, process_id: int, log_data: dict[str, Any]) -> None:
         """Broadcast a log entry to all subscribers of a process."""
@@ -164,6 +178,48 @@ class ConnectionManager:
         except Exception:
             await self.disconnect(websocket)
 
+    def _has_status_subscription(self, websocket: WebSocket) -> bool:
+        if websocket in self.global_status_subscriptions:
+            return True
+        return any(websocket in subscribers for subscribers in self.status_subscriptions.values())
+
+    def _ensure_status_poller(self, websocket: WebSocket) -> None:
+        if websocket in self.status_pollers:
+            return
+        self.status_pollers[websocket] = asyncio.create_task(self._status_poll_loop(websocket))
+
+    async def _status_poll_loop(self, websocket: WebSocket) -> None:
+        while websocket in self.active_connections:
+            if not self._has_status_subscription(websocket):
+                break
+            try:
+                await self._send_status_snapshot(websocket)
+            except Exception:
+                await self.disconnect(websocket)
+                break
+            await asyncio.sleep(STATUS_POLL_INTERVAL)
+
+    async def _send_status_snapshot(self, websocket: WebSocket) -> None:
+        init_database()
+        if websocket in self.global_status_subscriptions:
+            processes = Process.query().all()
+        else:
+            process_ids = [
+                process_id for process_id, subscribers in self.status_subscriptions.items() if websocket in subscribers
+            ]
+            processes = [Process.from_id(process_id) for process_id in process_ids]
+        for process in processes:
+            if not process:
+                continue
+            await self.send_personal(
+                websocket,
+                {
+                    "type": "status",
+                    "process_id": process._id,
+                    "data": _build_status_payload(process),
+                },
+            )
+
 
 # Global connection manager instance
 manager = ConnectionManager()
@@ -179,6 +235,10 @@ async def _handle_status_change(data: dict[str, Any]) -> None:
     """Handle status change events from ProcessManager."""
     process_id = data.get("process_id")
     if process_id is not None:
+        init_database()
+        process = Process.from_id(process_id)
+        if process:
+            data = {**data, **_build_status_payload(process)}
         await manager.broadcast_status(process_id, data)
 
 
@@ -200,6 +260,24 @@ def setup_event_handlers() -> None:
 setup_event_handlers()
 
 
+def _build_status_payload(process: Process) -> dict[str, Any]:
+    data: dict[str, Any] = {
+        "status": process.status,
+        "pid": process.pid,
+    }
+    if process.pid and process.status == "running":
+        linux_state = get_linux_process_state(process.pid)
+        if linux_state:
+            data["linux_state"] = linux_state
+            if linux_state["state_code"] == "D":
+                data["warning"] = "Process in uninterruptible sleep (D state) - may be stuck on I/O"
+            elif linux_state["state_code"] == "Z":
+                data["warning"] = "Process is a zombie - parent has not reaped it"
+            elif linux_state["state_code"] == "T":
+                data["warning"] = "Process is stopped (possibly by debugger or signal)"
+    return data
+
+
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """
@@ -217,7 +295,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     Server -> Client:
         {"type": "log", "process_id": 1, "data": {"timestamp": "...", "stream": "stdout", "line": "..."}}
-        {"type": "status", "process_id": 1, "data": {"status": "running", "pid": 12345}}
+        {"type": "status", "process_id": 1, "data": {"status": "running", "pid": 12345, "linux_state": {...}}}
         {"type": "subscribed", "action": "subscribe_logs", "process_id": 1}
         {"type": "unsubscribed", "action": "unsubscribe_logs", "process_id": 1}
         {"type": "pong"}

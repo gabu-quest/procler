@@ -176,6 +176,27 @@ function statusColor(status: string) {
   }
 }
 
+function linuxStateType(code?: string) {
+  switch (code) {
+    case "D":
+    case "Z":
+      return "error";
+    case "T":
+    case "t":
+      return "warning";
+    case "S":
+    case "I":
+      return "info";
+    default:
+      return "default";
+  }
+}
+
+function linuxStateLabel(code?: string, name?: string) {
+  if (!code || !name || code === "R") return null;
+  return `${code} ${name}`;
+}
+
 const commandModalTitle = computed(() =>
   selectedCommandName.value ? `Command — ${selectedCommandName.value}` : "Command"
 );
@@ -216,13 +237,18 @@ const columns: DataTableColumns<Process> = [
   {
     title: "Status",
     key: "status",
-    width: 100,
+    width: 170,
     render: (row) =>
-      h(
-        NTag,
-        { type: statusColor(row.status), size: "small" },
-        { default: () => row.status }
-      ),
+      h("div", { class: "status-cell" }, [
+        h(NTag, { type: statusColor(row.status), size: "small" }, { default: () => row.status }),
+        linuxStateLabel(row.linux_state?.state_code, row.linux_state?.state_name)
+          ? h(
+            NTag,
+            { type: linuxStateType(row.linux_state?.state_code), size: "small" },
+            { default: () => linuxStateLabel(row.linux_state?.state_code, row.linux_state?.state_name) }
+          )
+          : null,
+      ]),
   },
   {
     title: "PID",
@@ -500,6 +526,13 @@ onMounted(async () => {
   background: var(--n-code-color);
   padding: 0.125rem 0.375rem;
   border-radius: 3px;
+}
+
+.status-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
 }
 
 .processes-table :deep(.n-data-table) {

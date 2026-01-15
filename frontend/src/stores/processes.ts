@@ -196,15 +196,35 @@ export const useProcessStore = defineStore("processes", () => {
     }
   }
 
-  function updateProcessStatus(processId: number, status: Process["status"], pid: number | null) {
+  function updateProcessStatus(
+    processId: number,
+    status: Process["status"],
+    pid: number | null,
+    linuxState?: LinuxState | null,
+    warning?: string | null
+  ) {
     const process = processes.value.find((p) => p.id === processId);
     if (process) {
       process.status = status;
       process.pid = pid;
+      if (status !== "running" || !pid) {
+        process.linux_state = undefined;
+        process.warning = undefined;
+      } else if (linuxState) {
+        process.linux_state = linuxState;
+        process.warning = warning ?? undefined;
+      }
     }
     if (currentProcess.value?.id === processId) {
       currentProcess.value.status = status;
       currentProcess.value.pid = pid;
+      if (status !== "running" || !pid) {
+        currentProcess.value.linux_state = undefined;
+        currentProcess.value.warning = undefined;
+      } else if (linuxState) {
+        currentProcess.value.linux_state = linuxState;
+        currentProcess.value.warning = warning ?? undefined;
+      }
     }
   }
 
