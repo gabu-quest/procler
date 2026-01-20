@@ -53,7 +53,10 @@ class LogFileTailer:
             return True
 
         # Determine if we need to tail from container or locally
-        raw_container = getattr(process, "daemon_container", None)
+        # Use daemon_container if set, otherwise fall back to container_name for docker context
+        raw_container = getattr(process, "daemon_container", None) or (
+            getattr(process, "container_name", None) if getattr(process, "context_type", "local") == "docker" else None
+        )
         container = substitute_vars_from_config(raw_container) if raw_container else None
 
         # Start at end of file (don't replay history - that's what logs() is for)

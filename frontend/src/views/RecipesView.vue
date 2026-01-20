@@ -32,7 +32,7 @@
               <n-space size="small">
                 <n-button
                   size="small"
-                  :loading="store.runningRecipe === recipe.name && isDryRun"
+                  :loading="store.runningRecipe === recipe.name && executionMode === 'preview'"
                   :disabled="store.runningRecipe !== null"
                   @click="handleDryRun(recipe.name)"
                 >
@@ -44,7 +44,7 @@
                 <n-button
                   size="small"
                   type="primary"
-                  :loading="store.runningRecipe === recipe.name && !isDryRun"
+                  :loading="store.runningRecipe === recipe.name && executionMode === 'run'"
                   :disabled="store.runningRecipe !== null"
                   @click="handleRun(recipe.name)"
                 >
@@ -77,74 +77,122 @@
                 on_error: {{ recipe.on_error }}
               </n-tag>
             </div>
-
-            <!-- Steps -->
           </n-card>
         </n-gi>
       </n-grid>
     </n-spin>
 
-    <!-- Execution Result Modal -->
-    <n-modal v-model:show="showResultModal" preset="card" :title="resultModalTitle" style="max-width: 600px;">
-      <template v-if="store.lastRunResult">
-        <!-- Dry Run Preview -->
-        <template v-if="store.lastRunResult.dry_run">
-          <n-alert type="info" title="Preview Mode" style="margin-bottom: 1rem;">
-            This shows what would happen. No actions were taken.
-          </n-alert>
-          <div class="result-steps">
+    <!-- Live Execution Modal -->
+    <n-modal
+      v-model:show="showExecutionModal"
+      preset="card"
+      :title="executionModalTitle"
+      style="max-width: 640px;"
+      :mask-closable="!isExecuting"
+      :closable="!isExecuting"
+    >
+      <div class="execution-modal">
+        <!-- Header with overall progress -->
+        <div class="execution-header">
+          <div v-if="isExecuting" class="execution-status executing">
+            <n-spin size="small" />
+            <span>Running recipe...</span>
+          </div>
+          <div v-else-if="executionComplete" class="execution-status" :class="executionStatusClass">
+            <PhCheckCircle v-if="executionSuccess" weight="fill" class="status-icon success" />
+            <PhXCircle v-else weight="fill" class="status-icon error" />
+            <span>{{ executionStatusText }}</span>
+          </div>
+          <div v-else-if="executionMode === 'preview'" class="execution-status preview">
+            <PhEye weight="fill" class="status-icon info" />
+            <span>Preview Mode</span>
+          </div>
+
+          <!-- Progress bar -->
+          <div v-if="executionSteps.length > 0" class="progress-container">
+            <n-progress
+              type="line"
+              :percentage="progressPercentage"
+              :status="progressStatus"
+              :show-indicator="false"
+              :height="4"
+            />
+            <span class="progress-text">
+              {{ completedStepsCount }} / {{ executionSteps.length }} steps
+            </span>
+          </div>
+
+          <!-- Duration -->
+          <div v-if="executionDuration" class="execution-duration">
+            <PhTimer weight="regular" />
+            <span>{{ executionDuration }}ms</span>
+          </div>
+        </div>
+
+        <!-- Steps list -->
+        <div class="execution-steps">
+          <TransitionGroup name="step">
             <div
-              v-for="step in store.lastRunResult.planned_steps"
+              v-for="(step, index) in executionSteps"
               :key="step.step"
-              class="result-step preview"
+              :class="['execution-step', stepStatusClass(step)]"
+              :style="{ '--step-delay': `${index * 50}ms` }"
             >
-              <span class="step-number">{{ step.step }}</span>
-              <span class="step-action">{{ step.action }}</span>
-            </div>
-          </div>
-        </template>
+              <div class="step-indicator">
+                <!-- Pending -->
+                <div v-if="step.status === 'pending'" class="indicator pending">
+                  <span class="step-num">{{ step.step }}</span>
+                </div>
+                <!-- Running -->
+                <div v-else-if="step.status === 'running'" class="indicator running">
+                  <n-spin :size="14" />
+                </div>
+                <!-- Success -->
+                <div v-else-if="step.status === 'success'" class="indicator success">
+                  <PhCheck weight="bold" />
+                </div>
+                <!-- Error -->
+                <div v-else-if="step.status === 'error'" class="indicator error">
+                  <PhX weight="bold" />
+                </div>
+                <!-- Warning (ignored error) -->
+                <div v-else-if="step.status === 'warning'" class="indicator warning">
+                  <PhWarning weight="fill" />
+                </div>
+                <!-- Skipped -->
+                <div v-else-if="step.status === 'skipped'" class="indicator skipped">
+                  <PhMinusCircle weight="regular" />
+                </div>
+              </div>
 
-        <!-- Actual Run Result -->
-        <template v-else>
-          <div class="result-summary">
-            <n-alert
-              :type="store.lastRunResult.stopped_at_step ? 'error' : (store.lastRunResult.steps_completed === store.lastRunResult.steps_total ? 'success' : 'warning')"
-              :title="getResultTitle()"
-              style="margin-bottom: 1rem;"
-            >
-              <p>Duration: {{ store.lastRunResult.duration_ms }}ms</p>
-              <p>Steps: {{ store.lastRunResult.steps_completed }} / {{ store.lastRunResult.steps_total }}</p>
-              <p v-if="store.lastRunResult.stopped_at_step">
-                Stopped at step {{ store.lastRunResult.stopped_at_step }}
-              </p>
-            </n-alert>
-          </div>
+              <div class="step-content">
+                <span class="step-action">{{ step.action }}</span>
+                <span v-if="step.error" class="step-error">{{ step.error }}</span>
+              </div>
 
-          <div class="result-steps">
-            <div
-              v-for="result in store.lastRunResult.results"
-              :key="result.step"
-              :class="['result-step', { success: result.success, error: !result.success && !result.ignore_error, ignored: !result.success && result.ignore_error }]"
-            >
-              <PhCheckCircle v-if="result.success" weight="fill" class="step-icon success" />
-              <PhWarning v-else-if="result.ignore_error" weight="fill" class="step-icon warning" />
-              <PhXCircle v-else weight="fill" class="step-icon error" />
-              <span class="step-number">{{ result.step }}</span>
-              <span class="step-action">{{ result.action }}</span>
-              <span v-if="result.error" class="step-error">{{ result.error }}</span>
+              <!-- Connector line -->
+              <div v-if="index < executionSteps.length - 1" class="step-connector" />
             </div>
-          </div>
-        </template>
-      </template>
+          </TransitionGroup>
+        </div>
+      </div>
+
       <template #footer>
-        <n-button @click="showResultModal = false">Close</n-button>
+        <n-space justify="end">
+          <n-button
+            @click="closeExecutionModal"
+            :disabled="isExecuting"
+          >
+            {{ isExecuting ? 'Running...' : 'Close' }}
+          </n-button>
+        </n-space>
       </template>
     </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, nextTick } from "vue";
 import {
   NButton,
   NCard,
@@ -156,6 +204,7 @@ import {
   NSpace,
   NEmpty,
   NModal,
+  NProgress,
   useMessage,
 } from "naive-ui";
 import {
@@ -167,50 +216,170 @@ import {
   PhArrowRight,
   PhCheckCircle,
   PhXCircle,
+  PhCheck,
+  PhX,
+  PhMinusCircle,
+  PhTimer,
 } from "@phosphor-icons/vue";
 import { useRecipeStore } from "@/stores/recipes";
+import { useWebSocket, type RecipeStepEvent } from "@/composables/useWebSocket";
+
+interface ExecutionStep {
+  step: number;
+  action: string;
+  status: 'pending' | 'running' | 'success' | 'error' | 'warning' | 'skipped';
+  error?: string;
+  ignoreError?: boolean;
+}
 
 const store = useRecipeStore();
 const message = useMessage();
+const { connect, subscribeRecipe, unsubscribeRecipe } = useWebSocket();
 
-const isDryRun = ref(false);
-const showResultModal = ref(false);
-const resultModalTitle = computed(() => {
-  if (!store.lastRunResult) return "";
-  const prefix = store.lastRunResult.dry_run ? "Preview: " : "Result: ";
-  return prefix + store.lastRunResult.recipe;
+const showExecutionModal = ref(false);
+const executionMode = ref<'preview' | 'run'>('run');
+const executionSteps = ref<ExecutionStep[]>([]);
+const isExecuting = ref(false);
+const executionComplete = ref(false);
+const executionSuccess = ref(false);
+const executionDuration = ref<number | null>(null);
+const currentRecipeName = ref('');
+
+const executionModalTitle = computed(() => {
+  if (!currentRecipeName.value) return '';
+  const prefix = executionMode.value === 'preview' ? 'Preview: ' : '';
+  return prefix + currentRecipeName.value;
 });
 
+const completedStepsCount = computed(() => {
+  return executionSteps.value.filter(s =>
+    s.status === 'success' || s.status === 'error' || s.status === 'warning' || s.status === 'skipped'
+  ).length;
+});
+
+const progressPercentage = computed(() => {
+  if (executionSteps.value.length === 0) return 0;
+  return Math.round((completedStepsCount.value / executionSteps.value.length) * 100);
+});
+
+const progressStatus = computed(() => {
+  if (executionSteps.value.some(s => s.status === 'error')) return 'error';
+  if (executionSteps.value.some(s => s.status === 'warning')) return 'warning';
+  if (executionComplete.value && executionSuccess.value) return 'success';
+  return 'default';
+});
+
+const executionStatusClass = computed(() => {
+  if (executionSuccess.value) return 'success';
+  return 'error';
+});
+
+const executionStatusText = computed(() => {
+  if (executionSuccess.value) return 'Recipe completed successfully';
+  return 'Recipe stopped due to error';
+});
+
+function stepStatusClass(step: ExecutionStep) {
+  return step.status;
+}
+
+function resetExecutionState() {
+  executionSteps.value = [];
+  isExecuting.value = false;
+  executionComplete.value = false;
+  executionSuccess.value = false;
+  executionDuration.value = null;
+}
+
 async function handleDryRun(name: string) {
-  isDryRun.value = true;
-  message.info(`Previewing recipe: ${name}`);
-  await store.dryRunRecipe(name);
-  showResultModal.value = true;
+  executionMode.value = 'preview';
+  currentRecipeName.value = name;
+  resetExecutionState();
+  showExecutionModal.value = true;
+
+  // Get preview steps
+  const result = await store.dryRunRecipe(name);
+
+  if (result.success && result.data?.planned_steps) {
+    executionSteps.value = result.data.planned_steps.map((s: { step: number; action: string }) => ({
+      step: s.step,
+      action: s.action,
+      status: 'pending' as const,
+    }));
+  }
 }
 
 async function handleRun(name: string) {
-  isDryRun.value = false;
-  message.info(`Running recipe: ${name}`);
-  const result = await store.runRecipe(name);
-  if (result.success) {
-    message.success(`Recipe completed: ${name}`);
+  executionMode.value = 'run';
+  currentRecipeName.value = name;
+  resetExecutionState();
+  showExecutionModal.value = true;
+  isExecuting.value = true;
+
+  // First, get the planned steps via dry-run to show what will happen
+  const dryRunResult = await store.dryRunRecipe(name);
+
+  if (dryRunResult.success && dryRunResult.data?.planned_steps) {
+    executionSteps.value = dryRunResult.data.planned_steps.map((s: { step: number; action: string }) => ({
+      step: s.step,
+      action: s.action,
+      status: 'pending' as const,
+    }));
+
+    // Small delay to show the pending state
+    await nextTick();
+
+    // Subscribe to WebSocket events for real-time updates
+    connect();
+    subscribeRecipe(name, handleRecipeStepEvent);
+
+    // Run the actual recipe (events will update UI in real-time)
+    const result = await store.runRecipe(name);
+
+    // Unsubscribe from events
+    unsubscribeRecipe(name);
+
+    if (result.success && result.data) {
+      executionDuration.value = result.data.duration_ms;
+      executionSuccess.value = !result.data.stopped_at_step &&
+        result.data.steps_completed === result.data.steps_total;
+    } else {
+      // Mark all as error if the whole request failed
+      executionSteps.value = executionSteps.value.map(s => ({
+        ...s,
+        status: s.status === 'pending' ? 'error' as const : s.status,
+        error: s.status === 'pending' ? (result.error || 'Unknown error') : s.error,
+      }));
+      message.error(`Recipe failed: ${result.error || 'Unknown error'}`);
+    }
   } else {
-    message.error(`Recipe failed: ${result.error || "Unknown error"}`);
+    message.error('Failed to load recipe steps');
   }
-  showResultModal.value = true;
+
+  isExecuting.value = false;
+  executionComplete.value = true;
 }
 
-function getResultTitle(): string {
-  if (!store.lastRunResult) return "";
-  if (store.lastRunResult.stopped_at_step) return "Recipe stopped due to error";
-  if (store.lastRunResult.steps_completed === store.lastRunResult.steps_total) {
-    return "Recipe completed successfully";
+function handleRecipeStepEvent(event: RecipeStepEvent) {
+  const stepIndex = event.step - 1;
+  if (stepIndex >= 0 && stepIndex < executionSteps.value.length) {
+    executionSteps.value[stepIndex] = {
+      ...executionSteps.value[stepIndex],
+      status: event.status,
+      error: event.error || undefined,
+    };
   }
-  return "Recipe completed with issues";
+}
+
+function closeExecutionModal() {
+  if (!isExecuting.value) {
+    showExecutionModal.value = false;
+  }
 }
 
 onMounted(() => {
   store.fetchRecipes();
+  connect();
 });
 </script>
 
@@ -261,97 +430,252 @@ onMounted(() => {
 .recipe-meta {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 1rem;
 }
 
-.step-item,
-.result-step {
+/* Execution Modal Styles */
+.execution-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.execution-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--n-border-color);
+}
+
+.execution-status {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.375rem 0.5rem;
-  background: var(--n-code-color);
-  border-radius: var(--n-border-radius-small);
+  gap: 0.5rem;
+  font-weight: 500;
 }
 
-.step-number {
-  width: 1.5rem;
-  height: 1.5rem;
+.execution-status.executing {
+  color: var(--n-primary-color);
+}
+
+.execution-status.success {
+  color: var(--n-success-color);
+}
+
+.execution-status.error {
+  color: var(--n-error-color);
+}
+
+.execution-status.preview {
+  color: var(--n-info-color);
+}
+
+.status-icon {
+  font-size: 1.25rem;
+}
+
+.status-icon.success {
+  color: var(--n-success-color);
+}
+
+.status-icon.error {
+  color: var(--n-error-color);
+}
+
+.status-icon.info {
+  color: var(--n-info-color);
+}
+
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.progress-container :deep(.n-progress) {
+  flex: 1;
+}
+
+.progress-text {
+  font-size: 0.8125rem;
+  color: var(--n-text-color-3);
+  white-space: nowrap;
+}
+
+.execution-duration {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  color: var(--n-text-color-3);
+}
+
+/* Steps */
+.execution-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+.execution-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: 0.625rem 0;
+  position: relative;
+  animation: stepFadeIn 0.3s ease both;
+  animation-delay: var(--step-delay, 0ms);
+}
+
+@keyframes stepFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.step-indicator {
+  position: relative;
+  z-index: 1;
+}
+
+.indicator {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--n-primary-color);
-  color: var(--n-base-color);
   font-size: 0.75rem;
   font-weight: 600;
-  border-radius: 50%;
-  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.indicator.pending {
+  background: var(--n-code-color);
+  border: 2px solid var(--n-border-color);
+  color: var(--n-text-color-3);
+}
+
+.indicator.running {
+  background: rgba(0, 229, 255, 0.15);
+  border: 2px solid var(--n-primary-color);
+  color: var(--n-primary-color);
+}
+
+.indicator.success {
+  background: rgba(82, 196, 26, 0.15);
+  border: 2px solid var(--n-success-color);
+  color: var(--n-success-color);
+}
+
+.indicator.error {
+  background: rgba(255, 77, 79, 0.15);
+  border: 2px solid var(--n-error-color);
+  color: var(--n-error-color);
+}
+
+.indicator.warning {
+  background: rgba(250, 173, 20, 0.15);
+  border: 2px solid var(--n-warning-color);
+  color: var(--n-warning-color);
+}
+
+.indicator.skipped {
+  background: var(--n-code-color);
+  border: 2px dashed var(--n-border-color);
+  color: var(--n-text-color-3);
+  opacity: 0.6;
+}
+
+.step-num {
+  font-size: 0.75rem;
+}
+
+.step-content {
+  flex: 1;
+  min-width: 0;
+  padding-top: 0.25rem;
 }
 
 .step-action {
   font-family: var(--n-font-family-mono);
   font-size: 0.8125rem;
-  flex: 1;
+  word-break: break-word;
+  transition: color 0.2s ease;
 }
 
-/* Result modal styles */
-.result-summary {
-  margin-bottom: 1rem;
+.execution-step.pending .step-action {
+  color: var(--n-text-color-3);
 }
 
-.result-summary p {
-  margin: 0.25rem 0;
-  font-size: 0.875rem;
+.execution-step.running .step-action {
+  color: var(--n-primary-color);
 }
 
-.result-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+.execution-step.success .step-action {
+  color: var(--n-text-color-1);
 }
 
-.result-step {
-  border-left: 3px solid var(--n-border-color);
-}
-
-.result-step.success {
-  border-left-color: var(--n-success-color);
-}
-
-.result-step.error {
-  border-left-color: var(--n-error-color);
-  background: rgba(255, 59, 59, 0.08);
-}
-
-.result-step.ignored {
-  border-left-color: var(--n-warning-color);
-  background: rgba(255, 204, 0, 0.08);
-}
-
-.result-step.preview {
-  border-left-color: var(--n-info-color);
-}
-
-.step-icon {
-  font-size: 1.125rem;
-  flex-shrink: 0;
-}
-
-.step-icon.success {
-  color: var(--n-success-color);
-}
-
-.step-icon.error {
+.execution-step.error .step-action {
   color: var(--n-error-color);
 }
 
-.step-icon.warning {
+.execution-step.warning .step-action {
   color: var(--n-warning-color);
 }
 
+.execution-step.skipped .step-action {
+  color: var(--n-text-color-3);
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
 .step-error {
-  color: var(--n-error-color);
+  display: block;
   font-size: 0.75rem;
-  margin-left: auto;
+  color: var(--n-error-color);
+  margin-top: 0.25rem;
+}
+
+/* Connector line between steps */
+.step-connector {
+  position: absolute;
+  left: 13px;
+  top: 38px;
+  bottom: -10px;
+  width: 2px;
+  background: var(--n-border-color);
+  z-index: 0;
+}
+
+.execution-step.success .step-connector {
+  background: var(--n-success-color);
+}
+
+.execution-step.error .step-connector,
+.execution-step.warning .step-connector {
+  background: var(--n-border-color);
+}
+
+/* Transition group animations */
+.step-enter-active,
+.step-leave-active {
+  transition: all 0.3s ease;
+}
+
+.step-enter-from {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.step-leave-to {
+  opacity: 0;
+  transform: translateX(10px);
 }
 </style>

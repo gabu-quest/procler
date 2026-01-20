@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from ...core.events import EVENT_LOG_ENTRY, EVENT_STATUS_CHANGE, get_event_bus
+from ...core.events import EVENT_LOG_ENTRY, EVENT_RECIPE_STEP, EVENT_STATUS_CHANGE, get_event_bus
 from ...core.log_tailer import get_log_tailer
 from ...core.process_manager import get_linux_process_state
 from ...db import init_database
@@ -33,6 +33,8 @@ class ConnectionManager:
         self.global_status_subscriptions: set[WebSocket] = set()
         # Status pollers to refresh linux_state in real time
         self.status_pollers: dict[WebSocket, asyncio.Task] = {}
+        # Recipe subscriptions: recipe_name -> set of websockets
+        self.recipe_subscriptions: dict[str, set[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket) -> None:
         """Accept a new WebSocket connection."""
@@ -67,6 +69,12 @@ class ConnectionManager:
         # Remove from global subscriptions
         self.global_status_subscriptions.discard(websocket)
 
+        # Remove from recipe subscriptions
+        for recipe_name in list(self.recipe_subscriptions.keys()):
+            self.recipe_subscriptions[recipe_name].discard(websocket)
+            if not self.recipe_subscriptions[recipe_name]:
+                del self.recipe_subscriptions[recipe_name]
+
         # Stop tailers for processes with no remaining subscribers
         for process_id in processes_to_check:
             await self._stop_tailing_if_needed(process_id)
@@ -99,9 +107,13 @@ class ConnectionManager:
             process = Process.from_id(process_id)
             if process and getattr(process, "log_file", None):
                 tailer = get_log_tailer()
-                await tailer.start_tailing(process)
+                started = await tailer.start_tailing(process)
+                if started:
+                    logger.info(f"Started tailing logs for process {process.name} (id={process_id})")
+            elif process:
+                logger.debug(f"Process {process.name} has no log_file configured, skipping tail")
         except Exception as e:
-            logger.debug(f"Error starting tailer for process {process_id}: {e}")
+            logger.warning(f"Error starting tailer for process {process_id}: {e}")
 
     async def _stop_tailing_if_needed(self, process_id: int) -> None:
         """Stop log file tailing when no subscribers remain."""
@@ -157,6 +169,29 @@ class ConnectionManager:
         # Also send to global subscribers
         all_subscribers = subscribers | self.global_status_subscriptions
         await self._send_to_many(all_subscribers, message)
+
+    def subscribe_recipe(self, websocket: WebSocket, recipe_name: str) -> None:
+        """Subscribe to recipe execution updates."""
+        if recipe_name not in self.recipe_subscriptions:
+            self.recipe_subscriptions[recipe_name] = set()
+        self.recipe_subscriptions[recipe_name].add(websocket)
+
+    def unsubscribe_recipe(self, websocket: WebSocket, recipe_name: str) -> None:
+        """Unsubscribe from recipe execution updates."""
+        if recipe_name in self.recipe_subscriptions:
+            self.recipe_subscriptions[recipe_name].discard(websocket)
+            if not self.recipe_subscriptions[recipe_name]:
+                del self.recipe_subscriptions[recipe_name]
+
+    async def broadcast_recipe_step(self, recipe_name: str, step_data: dict[str, Any]) -> None:
+        """Broadcast a recipe step update to subscribers."""
+        message = {
+            "type": "recipe_step",
+            "recipe": recipe_name,
+            "data": step_data,
+        }
+        subscribers = self.recipe_subscriptions.get(recipe_name, set())
+        await self._send_to_many(subscribers, message)
 
     async def _send_to_many(self, websockets: set[WebSocket], message: dict) -> None:
         """Send a message to multiple WebSocket connections."""
@@ -249,11 +284,19 @@ async def _handle_log_entry(data: dict[str, Any]) -> None:
         await manager.broadcast_log(process_id, data)
 
 
+async def _handle_recipe_step(data: dict[str, Any]) -> None:
+    """Handle recipe step events from RecipeExecutor."""
+    recipe_name = data.get("recipe")
+    if recipe_name is not None:
+        await manager.broadcast_recipe_step(recipe_name, data)
+
+
 def setup_event_handlers() -> None:
     """Setup event handlers to bridge ProcessManager events to WebSocket."""
     event_bus = get_event_bus()
     event_bus.subscribe(EVENT_STATUS_CHANGE, _handle_status_change)
     event_bus.subscribe(EVENT_LOG_ENTRY, _handle_log_entry)
+    event_bus.subscribe(EVENT_RECIPE_STEP, _handle_recipe_step)
 
 
 # Setup event handlers when module loads
@@ -369,6 +412,42 @@ async def websocket_endpoint(websocket: WebSocket):
                 if process_id is not None:
                     response["process_id"] = process_id
                 await manager.send_personal(websocket, response)
+
+            elif action == "subscribe_recipe":
+                recipe_name = message.get("recipe")
+                if recipe_name is None:
+                    await manager.send_personal(
+                        websocket,
+                        {"type": "error", "message": "recipe required for subscribe_recipe"},
+                    )
+                else:
+                    manager.subscribe_recipe(websocket, recipe_name)
+                    await manager.send_personal(
+                        websocket,
+                        {
+                            "type": "subscribed",
+                            "action": "subscribe_recipe",
+                            "recipe": recipe_name,
+                        },
+                    )
+
+            elif action == "unsubscribe_recipe":
+                recipe_name = message.get("recipe")
+                if recipe_name is None:
+                    await manager.send_personal(
+                        websocket,
+                        {"type": "error", "message": "recipe required for unsubscribe_recipe"},
+                    )
+                else:
+                    manager.unsubscribe_recipe(websocket, recipe_name)
+                    await manager.send_personal(
+                        websocket,
+                        {
+                            "type": "unsubscribed",
+                            "action": "unsubscribe_recipe",
+                            "recipe": recipe_name,
+                        },
+                    )
 
             else:
                 await manager.send_personal(

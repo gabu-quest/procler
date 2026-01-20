@@ -21,6 +21,7 @@ from ..config import (
     get_config,
 )
 from . import get_process_manager
+from .events import EVENT_RECIPE_STEP, get_event_bus
 from .groups import get_group_manager
 
 
@@ -120,15 +121,37 @@ class RecipeExecutor:
         results = []
         all_success = True
         stopped_at_step = None
+        total_steps = len(steps)
 
         for i, step in enumerate(steps):
-            step_result = await self._execute_step(step, i + 1)
+            step_num = i + 1
+            action_desc = self._describe_step(step)
+
+            # Emit "running" event before execution
+            self._emit_step_event(name, step_num, total_steps, action_desc, "running")
+
+            step_result = await self._execute_step(step, step_num)
             results.append(step_result)
+
+            # Determine status for event
+            if step_result["success"]:
+                status = "success"
+            elif step_result.get("ignore_error"):
+                status = "warning"
+            else:
+                status = "error"
+
+            # Emit completion event
+            self._emit_step_event(name, step_num, total_steps, action_desc, status, error=step_result.get("error"))
 
             if not step_result["success"]:
                 all_success = False
                 if not should_continue and not step_result.get("ignore_error"):
-                    stopped_at_step = i + 1
+                    stopped_at_step = step_num
+                    # Emit skipped events for remaining steps
+                    for j in range(i + 1, len(steps)):
+                        skip_action = self._describe_step(steps[j])
+                        self._emit_step_event(name, j + 1, total_steps, skip_action, "skipped")
                     break
 
         duration_ms = int((time.time() - start_time) * 1000)
@@ -179,6 +202,29 @@ class RecipeExecutor:
                 "planned_steps": planned_steps,
             },
         }
+
+    def _emit_step_event(
+        self,
+        recipe: str,
+        step: int,
+        total: int,
+        action: str,
+        status: str,
+        error: str | None = None,
+    ) -> None:
+        """Emit a recipe step event for real-time updates."""
+        event_bus = get_event_bus()
+        event_bus.emit_sync(
+            EVENT_RECIPE_STEP,
+            {
+                "recipe": recipe,
+                "step": step,
+                "total": total,
+                "action": action,
+                "status": status,  # running, success, error, warning, skipped
+                "error": error,
+            },
+        )
 
     def _describe_step(self, step) -> str:
         """Get a human-readable description of a step."""

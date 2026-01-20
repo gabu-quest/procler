@@ -1,5 +1,14 @@
 import { ref, computed } from "vue";
-import { useProcessStore } from "@/stores/processes";
+import { useProcessStore, type Process } from "@/stores/processes";
+
+export interface RecipeStepEvent {
+  recipe: string;
+  step: number;
+  total: number;
+  action: string;
+  status: "running" | "success" | "error" | "warning" | "skipped";
+  error?: string | null;
+}
 
 type WebSocketMessage =
   | { type: "log"; process_id: number; data: { timestamp: string; stream: "stdout" | "stderr"; line: string } }
@@ -8,8 +17,9 @@ type WebSocketMessage =
     process_id: number;
     data: { status: string; pid: number | null; linux_state?: Process["linux_state"]; warning?: string | null };
   }
-  | { type: "subscribed"; action: string; process_id?: number }
-  | { type: "unsubscribed"; action: string; process_id?: number }
+  | { type: "recipe_step"; recipe: string; data: RecipeStepEvent }
+  | { type: "subscribed"; action: string; process_id?: number; recipe?: string }
+  | { type: "unsubscribed"; action: string; process_id?: number; recipe?: string }
   | { type: "pong" }
   | { type: "error"; message: string };
 
@@ -23,6 +33,11 @@ const lastError = ref<string | null>(null);
 const reconnectAttempts = ref(0);
 const subscribedLogs = ref<Set<number>>(new Set());
 const subscribedStatus = ref(false);
+const subscribedRecipes = ref<Set<string>>(new Set());
+
+// Callbacks for recipe step events
+type RecipeStepCallback = (event: RecipeStepEvent) => void;
+const recipeStepCallbacks = new Map<string, RecipeStepCallback>();
 
 const connectionStatus = computed<ConnectionStatus>(() => {
   if (connected.value) return "connected";
@@ -55,11 +70,22 @@ function handleMessage(msg: WebSocketMessage) {
       );
       break;
 
+    case "recipe_step":
+      {
+        const callback = recipeStepCallbacks.get(msg.recipe);
+        if (callback) {
+          callback(msg.data);
+        }
+      }
+      break;
+
     case "subscribed":
       if (msg.action === "subscribe_logs" && msg.process_id) {
         subscribedLogs.value.add(msg.process_id);
       } else if (msg.action === "subscribe_status") {
         subscribedStatus.value = true;
+      } else if (msg.action === "subscribe_recipe" && msg.recipe) {
+        subscribedRecipes.value.add(msg.recipe);
       }
       break;
 
@@ -68,6 +94,9 @@ function handleMessage(msg: WebSocketMessage) {
         subscribedLogs.value.delete(msg.process_id);
       } else if (msg.action === "unsubscribe_status") {
         subscribedStatus.value = false;
+      } else if (msg.action === "unsubscribe_recipe" && msg.recipe) {
+        subscribedRecipes.value.delete(msg.recipe);
+        recipeStepCallbacks.delete(msg.recipe);
       }
       break;
 
@@ -157,6 +186,16 @@ function unsubscribeStatus() {
   send({ action: "unsubscribe_status" });
 }
 
+function subscribeRecipe(recipeName: string, onStep: RecipeStepCallback) {
+  recipeStepCallbacks.set(recipeName, onStep);
+  send({ action: "subscribe_recipe", recipe: recipeName });
+}
+
+function unsubscribeRecipe(recipeName: string) {
+  send({ action: "unsubscribe_recipe", recipe: recipeName });
+  recipeStepCallbacks.delete(recipeName);
+}
+
 function disconnect() {
   if (ws.value) {
     ws.value.close();
@@ -173,11 +212,14 @@ export function useWebSocket() {
     reconnectAttempts,
     subscribedLogs,
     subscribedStatus,
+    subscribedRecipes,
     connect,
     disconnect,
     subscribeLogs,
     unsubscribeLogs,
     subscribeStatus,
     unsubscribeStatus,
+    subscribeRecipe,
+    unsubscribeRecipe,
   };
 }

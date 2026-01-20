@@ -190,19 +190,23 @@ function handleMenuClick(key: string) {
 
 .connection-indicator.connected {
   color: var(--n-success-color);
+  background: rgba(82, 196, 26, 0.15);
+  box-shadow: 0 0 14px rgba(82, 196, 26, 0.35);
 }
 
 .connection-indicator.connecting {
   color: var(--n-warning-color);
+  background: rgba(250, 173, 20, 0.1);
 }
 
-.connection-indicator.disconnected,
-.connection-indicator.error {
+.connection-indicator.disconnected {
   color: var(--n-text-color-3);
+  background: transparent;
 }
 
 .connection-indicator.error {
   color: var(--n-error-color);
+  background: rgba(255, 77, 79, 0.1);
 }
 
 .spin {

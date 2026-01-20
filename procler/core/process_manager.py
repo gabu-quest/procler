@@ -1078,9 +1078,11 @@ class ProcessManager:
 
             if lines:
                 log_source = "file"
+                # Log files don't have embedded timestamps, use current time as retrieval time
+                now = datetime.now().isoformat()
                 log_entries = [
                     {
-                        "timestamp": None,
+                        "timestamp": now,
                         "stream": "stdout",
                         "line": line,
                     }

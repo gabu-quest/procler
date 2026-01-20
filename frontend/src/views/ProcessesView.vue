@@ -253,8 +253,9 @@ const columns: DataTableColumns<Process> = [
   {
     title: "PID",
     key: "pid",
-    width: 80,
-    render: (row) => row.pid ?? "-",
+    width: 100,
+    render: (row) =>
+      h("span", { class: "pid-cell" }, row.pid ?? "-"),
   },
   {
     title: "Context",
@@ -533,6 +534,12 @@ onMounted(async () => {
   align-items: center;
   gap: 0.35rem;
   flex-wrap: wrap;
+}
+
+.pid-cell {
+  font-family: var(--n-font-family-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .processes-table :deep(.n-data-table) {

@@ -54,6 +54,7 @@ class EventBus:
 # Event types
 EVENT_STATUS_CHANGE = "status_change"
 EVENT_LOG_ENTRY = "log_entry"
+EVENT_RECIPE_STEP = "recipe_step"  # Recipe execution progress
 
 # Global event bus
 _event_bus: EventBus | None = None
