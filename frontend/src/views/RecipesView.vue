@@ -76,6 +76,18 @@
                 </template>
                 on_error: {{ recipe.on_error }}
               </n-tag>
+              <n-tag
+                v-if="store.getLastRunTime(recipe.name)"
+                size="small"
+                type="info"
+                :bordered="false"
+                class="last-run-tag"
+              >
+                <template #icon>
+                  <PhClockCounterClockwise />
+                </template>
+                ran {{ formatRelativeTime(store.getLastRunTime(recipe.name)) }}
+              </n-tag>
             </div>
           </n-card>
         </n-gi>
@@ -192,7 +204,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from "vue";
+import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
 import {
   NButton,
   NCard,
@@ -220,6 +232,7 @@ import {
   PhX,
   PhMinusCircle,
   PhTimer,
+  PhClockCounterClockwise,
 } from "@phosphor-icons/vue";
 import { useRecipeStore } from "@/stores/recipes";
 import { useWebSocket, type RecipeStepEvent } from "@/composables/useWebSocket";
@@ -235,6 +248,10 @@ interface ExecutionStep {
 const store = useRecipeStore();
 const message = useMessage();
 const { connect, subscribeRecipe, unsubscribeRecipe } = useWebSocket();
+
+// Tick counter to force re-render of relative times
+const timeTick = ref(0);
+let timeTickInterval: ReturnType<typeof setInterval> | null = null;
 
 const showExecutionModal = ref(false);
 const executionMode = ref<'preview' | 'run'>('run');
@@ -377,9 +394,32 @@ function closeExecutionModal() {
   }
 }
 
+function formatRelativeTime(timestamp: number | null): string | null {
+  void timeTick.value; // Dependency for reactivity
+  if (!timestamp) return null;
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 onMounted(() => {
   store.fetchRecipes();
   connect();
+  // Update relative times every 30 seconds
+  timeTickInterval = setInterval(() => {
+    timeTick.value++;
+  }, 30000);
+});
+
+onUnmounted(() => {
+  if (timeTickInterval) {
+    clearInterval(timeTickInterval);
+  }
 });
 </script>
 

@@ -35,6 +35,25 @@ export interface RecipeRunResult {
   planned_steps?: { step: number; action: string }[];
 }
 
+const LAST_RUN_STORAGE_KEY = "procler:recipe-last-run";
+
+function loadLastRunTimestamps(): Record<string, number> {
+  try {
+    const stored = localStorage.getItem(LAST_RUN_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveLastRunTimestamps(timestamps: Record<string, number>) {
+  try {
+    localStorage.setItem(LAST_RUN_STORAGE_KEY, JSON.stringify(timestamps));
+  } catch {
+    // localStorage might be unavailable
+  }
+}
+
 export const useRecipeStore = defineStore("recipes", () => {
   const recipes = ref<Recipe[]>([]);
   const currentRecipe = ref<RecipeDetail | null>(null);
@@ -42,6 +61,7 @@ export const useRecipeStore = defineStore("recipes", () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const runningRecipe = ref<string | null>(null); // Track which recipe is running
+  const lastRunTimestamps = ref<Record<string, number>>(loadLastRunTimestamps());
 
   const recipeCount = computed(() => recipes.value.length);
 
@@ -96,6 +116,14 @@ export const useRecipeStore = defineStore("recipes", () => {
       const data = await response.json();
       if (data.success) {
         lastRunResult.value = data.data;
+        // Track when recipe was last run (not dry-run)
+        if (!dryRun) {
+          lastRunTimestamps.value = {
+            ...lastRunTimestamps.value,
+            [name]: Date.now(),
+          };
+          saveLastRunTimestamps(lastRunTimestamps.value);
+        }
       } else {
         error.value = data.error;
       }
@@ -116,6 +144,10 @@ export const useRecipeStore = defineStore("recipes", () => {
     lastRunResult.value = null;
   }
 
+  function getLastRunTime(name: string): number | null {
+    return lastRunTimestamps.value[name] ?? null;
+  }
+
   return {
     recipes,
     currentRecipe,
@@ -124,10 +156,12 @@ export const useRecipeStore = defineStore("recipes", () => {
     error,
     runningRecipe,
     recipeCount,
+    lastRunTimestamps,
     fetchRecipes,
     fetchRecipe,
     runRecipe,
     dryRunRecipe,
     clearLastResult,
+    getLastRunTime,
   };
 });
