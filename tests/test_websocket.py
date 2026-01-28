@@ -24,7 +24,8 @@ def ws_manager():
 class TestConnectionManager:
     """Tests for ConnectionManager class."""
 
-    def test_connect_disconnect(self, ws_manager):
+    @pytest.mark.asyncio
+    async def test_connect_disconnect(self, ws_manager):
         """Test connecting and disconnecting."""
 
         # Create mock websocket
@@ -38,16 +39,15 @@ class TestConnectionManager:
         ws = MockWebSocket()
 
         # Simulate connect
-        import asyncio
-
-        asyncio.run(ws_manager.connect(ws))
+        await ws_manager.connect(ws)
         assert ws in ws_manager.active_connections
 
         # Simulate disconnect
-        ws_manager.disconnect(ws)
+        await ws_manager.disconnect(ws)
         assert ws not in ws_manager.active_connections
 
-    def test_subscribe_logs(self, ws_manager):
+    @pytest.mark.asyncio
+    async def test_subscribe_logs(self, ws_manager):
         """Test log subscription."""
 
         class MockWebSocket:
@@ -57,15 +57,16 @@ class TestConnectionManager:
         ws_manager.active_connections.append(ws)
 
         # Subscribe
-        ws_manager.subscribe_logs(ws, process_id=1)
+        await ws_manager.subscribe_logs(ws, process_id=1)
         assert 1 in ws_manager.log_subscriptions
         assert ws in ws_manager.log_subscriptions[1]
 
         # Unsubscribe
-        ws_manager.unsubscribe_logs(ws, process_id=1)
+        await ws_manager.unsubscribe_logs(ws, process_id=1)
         assert 1 not in ws_manager.log_subscriptions or ws not in ws_manager.log_subscriptions.get(1, set())
 
-    def test_subscribe_status(self, ws_manager):
+    @pytest.mark.asyncio
+    async def test_subscribe_status(self, ws_manager):
         """Test status subscription."""
 
         class MockWebSocket:
@@ -74,7 +75,7 @@ class TestConnectionManager:
         ws = MockWebSocket()
         ws_manager.active_connections.append(ws)
 
-        # Subscribe to specific process
+        # Subscribe to specific process (creates a background task, needs event loop)
         ws_manager.subscribe_status(ws, process_id=1)
         assert 1 in ws_manager.status_subscriptions
         assert ws in ws_manager.status_subscriptions[1]
@@ -88,6 +89,7 @@ class TestConnectionManager:
         ws_manager.unsubscribe_status(ws, process_id=None)
         assert ws not in ws_manager.global_status_subscriptions
 
+    @pytest.mark.asyncio
     async def test_broadcast_log(self, ws_manager):
         """Test broadcasting log entries."""
         received = []
@@ -98,7 +100,7 @@ class TestConnectionManager:
 
         ws = MockWebSocket()
         ws_manager.active_connections.append(ws)
-        ws_manager.subscribe_logs(ws, process_id=1)
+        await ws_manager.subscribe_logs(ws, process_id=1)
 
         await ws_manager.broadcast_log(process_id=1, log_data={"line": "test log", "stream": "stdout"})
 
@@ -107,6 +109,7 @@ class TestConnectionManager:
         assert received[0]["process_id"] == 1
         assert received[0]["data"]["line"] == "test log"
 
+    @pytest.mark.asyncio
     async def test_broadcast_status(self, ws_manager):
         """Test broadcasting status changes."""
         received = []
@@ -126,6 +129,7 @@ class TestConnectionManager:
         assert received[0]["process_id"] == 1
         assert received[0]["data"]["status"] == "running"
 
+    @pytest.mark.asyncio
     async def test_global_status_subscription(self, ws_manager):
         """Test that global subscribers receive all status updates."""
         received = []
@@ -146,7 +150,8 @@ class TestConnectionManager:
         assert received[0]["process_id"] == 1
         assert received[1]["process_id"] == 2
 
-    def test_disconnect_cleans_subscriptions(self, ws_manager):
+    @pytest.mark.asyncio
+    async def test_disconnect_cleans_subscriptions(self, ws_manager):
         """Test that disconnect removes all subscriptions."""
 
         class MockWebSocket:
@@ -154,12 +159,12 @@ class TestConnectionManager:
 
         ws = MockWebSocket()
         ws_manager.active_connections.append(ws)
-        ws_manager.subscribe_logs(ws, process_id=1)
-        ws_manager.subscribe_logs(ws, process_id=2)
+        await ws_manager.subscribe_logs(ws, process_id=1)
+        await ws_manager.subscribe_logs(ws, process_id=2)
         ws_manager.subscribe_status(ws, process_id=1)
         ws_manager.subscribe_status(ws, process_id=None)
 
-        ws_manager.disconnect(ws)
+        await ws_manager.disconnect(ws)
 
         assert ws not in ws_manager.active_connections
         assert ws not in ws_manager.global_status_subscriptions

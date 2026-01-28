@@ -92,7 +92,7 @@ CLI_SCHEMA = {
             "options": [],
         },
         "status": {
-            "description": "Show status of all processes or a specific one",
+            "description": "Show process status (use with NAME to show single process details)",
             "example": "procler status api",
             "arguments": [
                 {
@@ -147,6 +147,12 @@ CLI_SCHEMA = {
                 {"name": "--cwd", "required": False, "description": "Working directory"},
                 {"name": "--display-name", "required": False, "description": "Human-friendly name"},
                 {"name": "--tags", "required": False, "description": "Comma-separated tags"},
+                {
+                    "name": "--force",
+                    "required": False,
+                    "is_flag": True,
+                    "description": "Overwrite existing process definition",
+                },
             ],
         },
         "remove": {
@@ -212,6 +218,11 @@ CLI_SCHEMA = {
                     "description": "List all snippets",
                     "example": "procler snippet list --tag docker",
                     "options": [{"name": "--tag", "required": False, "description": "Filter by tag"}],
+                },
+                "show": {
+                    "description": "Show details of a specific snippet",
+                    "example": "procler snippet show rebuild",
+                    "arguments": [{"name": "name", "required": True, "description": "Snippet name"}],
                 },
                 "save": {
                     "description": "Save a new snippet",
@@ -592,7 +603,7 @@ OpenAPI: http://localhost:8000/api/docs
 @cli.command()
 @click.argument("name", required=False)
 def status(name: str | None) -> None:
-    """Show status of all processes or a specific one."""
+    """Show process status (use with NAME to show single process details)."""
     import asyncio
 
     from .core import get_process_manager
@@ -663,6 +674,7 @@ def list_processes(resolve: bool) -> None:
 @click.option("--daemon-pidfile", help="Path to daemon pidfile")
 @click.option("--daemon-container", help="Container name for daemon detection (use with docker exec commands)")
 @click.option("--adopt-existing", is_flag=True, help="Adopt existing daemon if running")
+@click.option("--force", is_flag=True, help="Overwrite existing process definition")
 def define(
     name: str,
     cmd: str,
@@ -676,6 +688,7 @@ def define(
     daemon_pidfile: str | None,
     daemon_container: str | None,
     adopt_existing: bool,
+    force: bool,
 ) -> None:
     """Define a new process."""
     from .db import init_database
@@ -696,14 +709,17 @@ def define(
     # Check if process already exists
     existing = _get_process_by_name(name)
     if existing:
-        output_json(
-            error_response(
-                f"Process '{name}' already exists",
-                error_code="process_exists",
-                suggestion=f"Use 'procler remove {name}' first, or choose a different name",
+        if not force:
+            output_json(
+                error_response(
+                    f"Process '{name}' already exists",
+                    error_code="process_exists",
+                    suggestion=f"Use --force to overwrite, or 'procler remove {name}' first",
+                )
             )
-        )
-        sys.exit(1)
+            sys.exit(1)
+        # Force mode: delete existing and continue
+        existing.delete()
 
     tag_list = [t.strip() for t in tags.split(",")] if tags else None
 
@@ -964,6 +980,28 @@ def snippet_list(tag: str | None) -> None:
     result = manager.list_snippets(tag=tag)
 
     output_json(result)
+
+
+@snippet.command("show")
+@click.argument("name")
+def snippet_show(name: str) -> None:
+    """Show details of a specific snippet."""
+    from .core import get_snippet_manager
+
+    manager = get_snippet_manager()
+    snippet = manager._get_snippet_by_name(name)
+
+    if not snippet:
+        output_json(
+            error_response(
+                f"Snippet '{name}' not found",
+                error_code="snippet_not_found",
+                suggestion="Run 'procler snippet list' to see available snippets",
+            )
+        )
+        sys.exit(1)
+
+    output_json(success_response({"snippet": manager._snippet_to_dict(snippet)}))
 
 
 @snippet.command("save")

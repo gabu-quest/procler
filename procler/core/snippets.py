@@ -20,6 +20,7 @@ class SnippetManager:
 
     def _get_snippet_by_name(self, name: str) -> Snippet | None:
         """Get a snippet by name."""
+        init_database()
         results = Snippet.query().filter(F("name") == name).all()
         return results[0] if results else None
 

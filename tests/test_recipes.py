@@ -79,14 +79,32 @@ def test_recipe_executor_singleton():
     assert executor1 is not executor3
 
 
-def test_list_recipes_empty():
+def test_list_recipes_empty(tmp_path):
     """Test listing recipes when none are defined."""
-    executor = get_recipe_executor()
-    result = executor.list_recipes()
+    import os
 
-    assert result["success"] is True
-    assert result["data"]["count"] == 0
-    assert result["data"]["recipes"] == []
+    # Set up empty config in temp directory
+    config_dir = tmp_path / ".procler"
+    config_dir.mkdir()
+    config_file = config_dir / "config.yaml"
+    config_file.write_text("version: 1\n")
+
+    old_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    config_loader.reset_config_cache()
+    reset_recipe_executor()
+
+    try:
+        executor = get_recipe_executor()
+        result = executor.list_recipes()
+
+        assert result["success"] is True
+        assert result["data"]["count"] == 0
+        assert result["data"]["recipes"] == []
+    finally:
+        os.chdir(old_cwd)
+        config_loader.reset_config_cache()
+        reset_recipe_executor()
 
 
 def test_list_recipes(recipe_config):

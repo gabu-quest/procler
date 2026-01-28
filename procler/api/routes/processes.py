@@ -21,6 +21,7 @@ class ProcessDefineRequest(BaseModel):
     cwd: str | None = None
     display_name: str | None = None
     tags: list[str] | None = None
+    force: bool = False
 
 
 class ProcessResponse(BaseModel):
@@ -79,12 +80,15 @@ async def create_process(
     # Check if process already exists
     existing = Process.query().filter(F("name") == request.name).all()
     if existing:
-        return ProcessResponse(
-            success=False,
-            error=f"Process '{request.name}' already exists",
-            error_code="process_exists",
-            suggestion=f"Use DELETE /api/processes/{request.name} first, or choose a different name",
-        )
+        if not request.force:
+            return ProcessResponse(
+                success=False,
+                error=f"Process '{request.name}' already exists",
+                error_code="process_exists",
+                suggestion=f"Use force=true to overwrite, or DELETE /api/processes/{request.name} first",
+            )
+        # Force mode: delete existing and continue
+        existing[0].delete()
 
     process = Process(
         name=request.name,

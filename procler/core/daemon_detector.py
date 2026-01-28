@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import shlex
+import time
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -101,10 +102,10 @@ class DaemonDetector:
         Returns:
             The daemon's PID if found within timeout, None otherwise
         """
-        start_time = asyncio.get_event_loop().time()
+        start_time = time.monotonic()
         attempts = 0
 
-        while (asyncio.get_event_loop().time() - start_time) < timeout:
+        while (time.monotonic() - start_time) < timeout:
             attempts += 1
             pid = await self._find_by_pattern(pattern, container, user)
             if pid:
@@ -266,7 +267,8 @@ class DaemonDetector:
         escaped_pattern = shlex.quote(safe_pattern)[1:-1]  # Remove outer quotes added by shlex
 
         if container:
-            cmd = f"docker exec -u {_quote_user(user)} {shlex.quote(container)} bash -c \"ps aux | grep '{escaped_pattern}'\""
+            docker_cmd = f"docker exec -u {_quote_user(user)} {shlex.quote(container)}"
+            cmd = f"{docker_cmd} bash -c \"ps aux | grep '{escaped_pattern}'\""
         else:
             cmd = f"ps aux | grep '{escaped_pattern}'"
 

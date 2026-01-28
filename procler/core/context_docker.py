@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+import time
 from collections.abc import AsyncIterator, Callable
 
 try:
@@ -56,6 +57,23 @@ class DockerContext(ExecutionContext):
             return container.status == "running"
         except ValueError:
             return False
+
+    def check_container_available(self, container_name: str) -> tuple[bool, str | None]:
+        """Pre-flight check if container is available and running.
+
+        Returns (is_available, error_message).
+        """
+        if not validate_container_name(container_name):
+            return False, f"Invalid container name: '{container_name}'"
+        try:
+            container = self._client.containers.get(container_name)
+            if container.status != "running":
+                return False, f"Container '{container_name}' is not running (status: {container.status})"
+            return True, None
+        except NotFound:
+            return False, f"Container '{container_name}' not found"
+        except Exception as e:
+            return False, f"Error checking container '{container_name}': {e}"
 
     def list_containers(self, running_only: bool = True) -> list[dict]:
         """List available containers."""
@@ -220,8 +238,8 @@ class DockerContext(ExecutionContext):
             pass
 
         # Wait for completion (can't really kill exec)
-        start_time = asyncio.get_event_loop().time()
-        while asyncio.get_event_loop().time() - start_time < timeout:
+        start_time = time.monotonic()
+        while time.monotonic() - start_time < timeout:
             await asyncio.sleep(0.1)
             try:
                 inspect = container.client.api.exec_inspect(exec_id)

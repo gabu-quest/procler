@@ -65,14 +65,32 @@ def test_group_manager_singleton():
     assert manager1 is not manager3
 
 
-def test_list_groups_empty():
+def test_list_groups_empty(tmp_path):
     """Test listing groups when none are defined."""
-    manager = get_group_manager()
-    result = manager.list_groups()
+    import os
 
-    assert result["success"] is True
-    assert result["data"]["count"] == 0
-    assert result["data"]["groups"] == []
+    # Set up empty config in temp directory
+    config_dir = tmp_path / ".procler"
+    config_dir.mkdir()
+    config_file = config_dir / "config.yaml"
+    config_file.write_text("version: 1\n")
+
+    old_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    config_loader.reset_config_cache()
+    reset_group_manager()
+
+    try:
+        manager = get_group_manager()
+        result = manager.list_groups()
+
+        assert result["success"] is True
+        assert result["data"]["count"] == 0
+        assert result["data"]["groups"] == []
+    finally:
+        os.chdir(old_cwd)
+        config_loader.reset_config_cache()
+        reset_group_manager()
 
 
 def test_list_groups(group_config):

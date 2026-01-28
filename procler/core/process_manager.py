@@ -454,6 +454,19 @@ class ProcessManager:
                 "suggestion": "Define process with --container <name>",
             }
 
+        # Pre-flight container check for docker context
+        if process.context_type == "docker" and process.container_name:
+            container_name = substitute_vars_from_config(process.container_name)
+            docker_ctx = self._get_context("docker")
+            is_available, error_msg = docker_ctx.check_container_available(container_name)
+            if not is_available:
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "error_code": "container_unavailable",
+                    "suggestion": "Ensure the Docker container is running with 'docker ps'",
+                }
+
         # Update status to starting
         process.status = ProcessStatus.STARTING.value
         process.save()
