@@ -79,6 +79,10 @@ exclude = [
     "/scripts",
     "/.gitignore",
     "/the-style-main.zip",
+    "/CLAUDE.md",
+    "/CLAUDE.local.md",
+    "/TODO.md",
+    "/procler-roadmap.md",
 ]
 
 [tool.hatch.build.targets.wheel]

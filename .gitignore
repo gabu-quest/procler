@@ -48,6 +48,9 @@ htmlcov/
 # Local data
 .procler/
 
+# Local development preferences
+CLAUDE.local.md
+
 # Frontend build (keep built static/ in git for ease of use)
 frontend/node_modules/
 frontend/dist/
