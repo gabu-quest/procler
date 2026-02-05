@@ -4,16 +4,17 @@ import json
 
 from click.testing import CliRunner
 
+from procler import __version__
 from procler.cli import cli
 
 
 def test_version():
-    """Test --version flag."""
+    """Test --version flag outputs the actual package version."""
     runner = CliRunner()
     result = runner.invoke(cli, ["--version"])
     assert result.exit_code == 0
     assert "procler" in result.output
-    assert "0.1.0" in result.output
+    assert __version__ in result.output
 
 
 def test_capabilities():
