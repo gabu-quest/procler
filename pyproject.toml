@@ -1,6 +1,6 @@
 [project]
 name = "procler"
-version = "0.1.0"
+version = "0.2.0"
 description = "LLM-first process manager for developers"
 readme = "README.md"
 license = { text = "MIT" }
