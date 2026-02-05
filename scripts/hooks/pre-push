@@ -1,0 +1,17 @@
+#!/bin/bash
+# Pre-push hook: run tests before pushing to catch CI failures locally
+
+echo "Running tests before push..."
+cd "$(git rev-parse --show-toplevel)"
+
+# Run pytest (same as CI)
+uv run pytest tests/ -q --tb=short
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "❌ Tests failed. Push aborted."
+    echo "Fix the tests before pushing."
+    exit 1
+fi
+
+echo "✅ Tests passed. Pushing..."
