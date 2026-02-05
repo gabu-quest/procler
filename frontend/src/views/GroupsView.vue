@@ -251,8 +251,8 @@ async function fetchGroupStatus(name: string) {
       }
       groupStatuses[name] = statusMap;
     }
-  } catch (e) {
-    console.error("Failed to fetch group status:", e);
+  } catch {
+    // Network error - status will remain unknown
   }
 }
 

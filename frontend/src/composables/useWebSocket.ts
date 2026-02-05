@@ -105,7 +105,8 @@ function handleMessage(msg: WebSocketMessage) {
       break;
 
     case "error":
-      console.error("[WS] Server error:", msg.message);
+      // Server-side error - update lastError for UI display
+      lastError.value = msg.message;
       break;
   }
 }
@@ -133,7 +134,6 @@ function connect() {
     connecting.value = false;
     reconnectAttempts.value = 0;
     lastError.value = null;
-    console.log("[WS] Connected");
   };
 
   ws.value.onclose = () => {
@@ -142,14 +142,12 @@ function connect() {
     subscribedLogs.value.clear();
     subscribedStatus.value = false;
     reconnectAttempts.value++;
-    console.log(`[WS] Disconnected (reconnect attempt ${reconnectAttempts.value})`);
     // Attempt reconnect with exponential backoff (max 30s)
     const delay = Math.min(2000 * Math.pow(1.5, reconnectAttempts.value - 1), 30000);
     setTimeout(connect, delay);
   };
 
-  ws.value.onerror = (e) => {
-    console.error("[WS] Error:", e);
+  ws.value.onerror = () => {
     lastError.value = "Connection error";
     connecting.value = false;
   };
@@ -158,8 +156,8 @@ function connect() {
     try {
       const msg = JSON.parse(event.data) as WebSocketMessage;
       handleMessage(msg);
-    } catch (e) {
-      console.error("[WS] Failed to parse message:", e);
+    } catch {
+      // Invalid message format - ignore
     }
   };
 }

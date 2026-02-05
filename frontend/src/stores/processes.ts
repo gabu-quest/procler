@@ -183,8 +183,8 @@ export const useProcessStore = defineStore("processes", () => {
       if (data.success) {
         logs.value = data.data.logs;
       }
-    } catch (e) {
-      console.error("Failed to fetch logs:", e);
+    } catch {
+      // Network error - logs will remain empty
     }
   }
 
