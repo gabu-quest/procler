@@ -1,12 +1,12 @@
 <template>
   <div class="groups-view">
     <div class="page-header">
-      <h1>Groups</h1>
+      <h1>{{ $t('groups.title') }}</h1>
       <n-button @click="refreshAll" :loading="store.loading">
         <template #icon>
           <PhArrowsClockwise />
         </template>
-        Refresh
+        {{ $t('common.refresh') }}
       </n-button>
     </div>
 
@@ -16,10 +16,10 @@
       </div>
 
       <div v-else-if="store.groups.length === 0" class="empty-state">
-        <n-empty description="No groups defined">
+        <n-empty :description="$t('groups.noGroups')">
           <template #extra>
             <p class="empty-hint">
-              Define groups in your <code>.procler/config.yaml</code> file
+              {{ $t('groups.defineHint', { config: '' }) }}<code>.procler/config.yaml</code>
             </p>
           </template>
         </n-empty>
@@ -40,7 +40,7 @@
                   <template #icon>
                     <PhPlay weight="fill" />
                   </template>
-                  Start All
+                  {{ $t('groups.startAll') }}
                 </n-button>
                 <n-button
                   size="small"
@@ -52,7 +52,7 @@
                   <template #icon>
                     <PhStop weight="fill" />
                   </template>
-                  Stop All
+                  {{ $t('groups.stopAll') }}
                 </n-button>
               </n-space>
             </template>
@@ -61,8 +61,8 @@
 
             <div class="process-list">
               <div class="list-header">
-                <span class="header-label">Start Order</span>
-                <n-tag size="small" :bordered="false">{{ group.processes.length }} processes</n-tag>
+                <span class="header-label">{{ $t('groups.startOrder') }}</span>
+                <n-tag size="small" :bordered="false">{{ $t('groups.processCount', { count: group.processes.length }) }}</n-tag>
               </div>
 
               <div class="process-items">
@@ -81,9 +81,9 @@
                     <template v-if="groupStatuses[group.name][proc].status === 'not_defined'">
                       <n-tooltip>
                         <template #trigger>
-                          <span class="status-label">missing in config</span>
+                          <span class="status-label">{{ $t('groups.missingInConfig') }}</span>
                         </template>
-                        This process exists only in state.db. Add it to config.yaml to include it in groups.
+                        {{ $t('groups.missingTooltip') }}
                       </n-tooltip>
                     </template>
                     <template v-else>
@@ -93,13 +93,13 @@
                   <!-- Linux state warning -->
                   <n-tooltip v-if="groupStatuses[group.name]?.[proc]?.linux_state?.state_code === 'D'">
                     <template #trigger>
-                      <n-tag type="error" size="small">D (unkillable)</n-tag>
+                      <n-tag type="error" size="small">{{ $t('groups.linuxState.unkillable') }}</n-tag>
                     </template>
                     {{ groupStatuses[group.name]?.[proc]?.linux_state?.state_description }}
                   </n-tooltip>
                   <n-tooltip v-else-if="groupStatuses[group.name]?.[proc]?.linux_state?.state_code === 'Z'">
                     <template #trigger>
-                      <n-tag type="warning" size="small">Z (zombie)</n-tag>
+                      <n-tag type="warning" size="small">{{ $t('groups.linuxState.zombie') }}</n-tag>
                     </template>
                     {{ groupStatuses[group.name]?.[proc]?.linux_state?.state_description }}
                   </n-tooltip>
@@ -116,14 +116,14 @@
                     <template #trigger>
                       <PhArrowBendDownRight class="dep-icon" />
                     </template>
-                    Depends on: {{ formatDependencies(groupStatuses[group.name]?.[proc]?.depends_on) }}
+                    {{ $t('groups.dependsOn', { deps: formatDependencies(groupStatuses[group.name]?.[proc]?.depends_on) }) }}
                   </n-tooltip>
                 </div>
               </div>
 
               <div v-if="group.stop_order.join(',') !== [...group.processes].reverse().join(',')" class="stop-order">
                 <n-divider />
-                <span class="order-label">Stop Order:</span>
+                <span class="order-label">{{ $t('groups.stopOrder') }}</span>
                 <span class="order-processes">{{ group.stop_order.join(' → ') }}</span>
               </div>
             </div>
@@ -134,7 +134,7 @@
               <div class="operation-result">
                 <n-alert
                   :type="lastResults[group.name].success ? 'success' : 'error'"
-                  :title="lastResults[group.name].success ? 'Operation completed' : 'Operation had errors'"
+                  :title="lastResults[group.name].success ? $t('groups.operationCompleted') : $t('groups.operationHadErrors')"
                   closable
                   @close="clearResult(group.name)"
                 >
@@ -162,6 +162,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   NButton,
   NCard,
@@ -179,6 +180,7 @@ import {
 import { PhPlay, PhStop, PhArrowsClockwise, PhCheckCircle, PhXCircle, PhArrowBendDownRight } from "@phosphor-icons/vue";
 import { useGroupStore } from "@/stores/groups";
 
+const { t } = useI18n();
 const store = useGroupStore();
 const message = useMessage();
 
@@ -208,7 +210,7 @@ function statusType(status: string) {
 }
 
 function statusLabel(status: string) {
-  if (status === "not_defined") return "missing in config";
+  if (status === "not_defined") return t('groups.missingInConfig');
   return status;
 }
 
@@ -256,12 +258,12 @@ async function fetchGroupStatus(name: string) {
 
 async function handleStartGroup(name: string) {
   isStarting.value = true;
-  message.info(`Starting group: ${name}`);
+  message.info(t('groups.messages.starting', { name }));
   const result = await store.startGroup(name);
   if (result.success) {
-    message.success(`Started group: ${name}`);
+    message.success(t('groups.messages.started', { name }));
   } else {
-    message.error(`Failed to start group: ${result.error}`);
+    message.error(t('groups.messages.startFailed', { error: result.error }));
   }
   lastResults[name] = { success: result.success, results: result.data?.results ?? [] };
   await fetchGroupStatus(name);
@@ -269,12 +271,12 @@ async function handleStartGroup(name: string) {
 
 async function handleStopGroup(name: string) {
   isStarting.value = false;
-  message.info(`Stopping group: ${name}`);
+  message.info(t('groups.messages.stopping', { name }));
   const result = await store.stopGroup(name);
   if (result.success) {
-    message.success(`Stopped group: ${name}`);
+    message.success(t('groups.messages.stopped', { name }));
   } else {
-    message.error(`Failed to stop group: ${result.error}`);
+    message.error(t('groups.messages.stopFailed', { error: result.error }));
   }
   lastResults[name] = { success: result.success, results: result.data?.results ?? [] };
   await fetchGroupStatus(name);

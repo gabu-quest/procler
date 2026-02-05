@@ -1,12 +1,12 @@
 <template>
   <div class="recipes-view">
     <div class="page-header">
-      <h1>Recipes</h1>
+      <h1>{{ $t('recipes.title') }}</h1>
       <n-button @click="store.fetchRecipes()" :loading="store.loading">
         <template #icon>
           <PhArrowsClockwise />
         </template>
-        Refresh
+        {{ $t('common.refresh') }}
       </n-button>
     </div>
 
@@ -16,10 +16,10 @@
       </div>
 
       <div v-else-if="store.recipes.length === 0" class="empty-state">
-        <n-empty description="No recipes defined">
+        <n-empty :description="$t('recipes.noRecipes')">
           <template #extra>
             <p class="empty-hint">
-              Define recipes in your <code>.procler/config.yaml</code> file
+              {{ $t('recipes.defineHint', { config: '' }) }}<code>.procler/config.yaml</code>
             </p>
           </template>
         </n-empty>
@@ -39,7 +39,7 @@
                   <template #icon>
                     <PhEye />
                   </template>
-                  Preview
+                  {{ $t('common.preview') }}
                 </n-button>
                 <n-button
                   size="small"
@@ -51,7 +51,7 @@
                   <template #icon>
                     <PhPlay weight="fill" />
                   </template>
-                  Run
+                  {{ $t('common.run') }}
                 </n-button>
               </n-space>
             </template>
@@ -63,7 +63,7 @@
                 <template #icon>
                   <PhListNumbers />
                 </template>
-                {{ recipe.steps_count }} steps
+                {{ $t('recipes.stepsCount', { count: recipe.steps_count }) }}
               </n-tag>
               <n-tag
                 size="small"
@@ -74,7 +74,7 @@
                   <PhWarning v-if="recipe.on_error === 'stop'" />
                   <PhArrowRight v-else />
                 </template>
-                on_error: {{ recipe.on_error }}
+                {{ $t('recipes.onError', { mode: recipe.on_error }) }}
               </n-tag>
               <n-tag
                 v-if="store.getLastRunTime(recipe.name)"
@@ -86,7 +86,7 @@
                 <template #icon>
                   <PhClockCounterClockwise />
                 </template>
-                ran {{ formatRelativeTime(store.getLastRunTime(recipe.name)) }}
+                {{ $t('recipes.ranAgo', { time: formatRelativeTime(store.getLastRunTime(recipe.name)) }) }}
               </n-tag>
             </div>
           </n-card>
@@ -108,7 +108,7 @@
         <div class="execution-header">
           <div v-if="isExecuting" class="execution-status executing">
             <n-spin size="small" />
-            <span>Running recipe...</span>
+            <span>{{ $t('recipes.execution.running') }}</span>
           </div>
           <div v-else-if="executionComplete" class="execution-status" :class="executionStatusClass">
             <PhCheckCircle v-if="executionSuccess" weight="fill" class="status-icon success" />
@@ -117,7 +117,7 @@
           </div>
           <div v-else-if="executionMode === 'preview'" class="execution-status preview">
             <PhEye weight="fill" class="status-icon info" />
-            <span>Preview Mode</span>
+            <span>{{ $t('recipes.execution.previewMode') }}</span>
           </div>
 
           <!-- Progress bar -->
@@ -130,7 +130,7 @@
               :height="4"
             />
             <span class="progress-text">
-              {{ completedStepsCount }} / {{ executionSteps.length }} steps
+              {{ $t('recipes.execution.stepsProgress', { completed: completedStepsCount, total: executionSteps.length }) }}
             </span>
           </div>
 
@@ -195,7 +195,7 @@
             @click="closeExecutionModal"
             :disabled="isExecuting"
           >
-            {{ isExecuting ? 'Running...' : 'Close' }}
+            {{ isExecuting ? $t('recipes.execution.running') : $t('common.close') }}
           </n-button>
         </n-space>
       </template>
@@ -205,6 +205,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   NButton,
   NCard,
@@ -245,6 +246,7 @@ interface ExecutionStep {
   ignoreError?: boolean;
 }
 
+const { t } = useI18n();
 const store = useRecipeStore();
 const message = useMessage();
 const { connect, subscribeRecipe, unsubscribeRecipe } = useWebSocket();
@@ -292,8 +294,8 @@ const executionStatusClass = computed(() => {
 });
 
 const executionStatusText = computed(() => {
-  if (executionSuccess.value) return 'Recipe completed successfully';
-  return 'Recipe stopped due to error';
+  if (executionSuccess.value) return t('recipes.execution.completed');
+  return t('recipes.execution.stoppedDueToError');
 });
 
 function stepStatusClass(step: ExecutionStep) {
@@ -367,10 +369,10 @@ async function handleRun(name: string) {
         status: s.status === 'pending' ? 'error' as const : s.status,
         error: s.status === 'pending' ? (result.error || 'Unknown error') : s.error,
       }));
-      message.error(`Recipe failed: ${result.error || 'Unknown error'}`);
+      message.error(t('recipes.messages.failed', { error: result.error || 'Unknown error' }));
     }
   } else {
-    message.error('Failed to load recipe steps');
+    message.error(t('recipes.messages.loadFailed'));
   }
 
   isExecuting.value = false;

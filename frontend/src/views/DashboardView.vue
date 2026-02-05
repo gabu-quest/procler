@@ -3,13 +3,13 @@
     <div class="page-header">
       <div class="header-title">
         <img src="/procler.png" alt="Procler logo" class="dashboard-logo" />
-        <h1>Dashboard</h1>
+        <h1>{{ $t('dashboard.title') }}</h1>
       </div>
       <n-button @click="refreshAll" :loading="loading">
         <template #icon>
           <PhArrowsClockwise />
         </template>
-        Refresh
+        {{ $t('common.refresh') }}
       </n-button>
     </div>
 
@@ -22,7 +22,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-value">{{ processStore.runningCount }}</div>
-            <div class="stat-label">Running</div>
+            <div class="stat-label">{{ $t('dashboard.stats.running') }}</div>
           </div>
         </div>
       </n-card>
@@ -34,7 +34,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-value">{{ processStore.processes.length }}</div>
-            <div class="stat-label">Processes</div>
+            <div class="stat-label">{{ $t('dashboard.stats.processes') }}</div>
           </div>
         </div>
       </n-card>
@@ -46,7 +46,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-value">{{ groupStore.groups.length }}</div>
-            <div class="stat-label">Groups</div>
+            <div class="stat-label">{{ $t('dashboard.stats.groups') }}</div>
           </div>
         </div>
       </n-card>
@@ -58,7 +58,7 @@
           </div>
           <div class="stat-info">
             <div class="stat-value">{{ recipeStore.recipes.length }}</div>
-            <div class="stat-label">Recipes</div>
+            <div class="stat-label">{{ $t('dashboard.stats.recipes') }}</div>
           </div>
         </div>
       </n-card>
@@ -67,13 +67,13 @@
     <n-grid :cols="2" :x-gap="20" :y-gap="20" responsive="screen" :item-responsive="true">
       <!-- Process Status -->
       <n-gi span="2 m:1">
-        <n-card title="Process Status">
+        <n-card :title="$t('dashboard.processStatus')">
           <template #header-extra>
-            <router-link to="/processes" class="view-all-link">View all</router-link>
+            <router-link to="/processes" class="view-all-link">{{ $t('common.viewAll') }}</router-link>
           </template>
 
           <div v-if="processStore.processes.length === 0" class="empty-placeholder">
-            <n-empty description="No processes defined" size="small" />
+            <n-empty :description="$t('dashboard.noProcesses')" size="small" />
           </div>
 
           <div v-else class="process-list">
@@ -99,7 +99,7 @@
               </div>
             </div>
             <div v-if="processStore.processes.length > 8" class="more-indicator">
-              +{{ processStore.processes.length - 8 }} more
+              {{ $t('common.more', { count: processStore.processes.length - 8 }) }}
             </div>
           </div>
         </n-card>
@@ -107,12 +107,12 @@
 
       <!-- Quick Actions -->
       <n-gi span="2 m:1">
-        <n-card title="Quick Actions">
+        <n-card :title="$t('dashboard.quickActions')">
           <div v-if="groupStore.groups.length === 0 && recipeStore.recipes.length === 0" class="empty-placeholder">
-            <n-empty description="No groups or recipes defined" size="small">
+            <n-empty :description="$t('dashboard.noGroupsOrRecipes')" size="small">
               <template #extra>
                 <p class="empty-hint">
-                  Define them in <code>.procler/config.yaml</code>
+                  {{ $t('dashboard.defineInConfig', { config: '' }) }}<code>.procler/config.yaml</code>
                 </p>
               </template>
             </n-empty>
@@ -121,7 +121,7 @@
           <div v-else class="quick-actions">
             <!-- Groups -->
             <div v-if="groupStore.groups.length > 0" class="action-section">
-              <div class="section-label">Groups</div>
+              <div class="section-label">{{ $t('nav.groups') }}</div>
               <div class="action-buttons">
                 <n-button
                   v-for="group in groupStore.groups.slice(0, 4)"
@@ -139,7 +139,7 @@
 
             <!-- Recipes -->
             <div v-if="recipeStore.recipes.length > 0" class="action-section">
-              <div class="section-label">Recipes</div>
+              <div class="section-label">{{ $t('nav.recipes') }}</div>
               <div class="action-buttons">
                 <n-button
                   v-for="recipe in recipeStore.recipes.slice(0, 4)"
@@ -162,13 +162,13 @@
 
       <!-- Recent Activity -->
       <n-gi span="2">
-        <n-card title="Recent Activity">
+        <n-card :title="$t('dashboard.recentActivity')">
           <template #header-extra>
-            <router-link to="/config" class="view-all-link">View changelog</router-link>
+            <router-link to="/config" class="view-all-link">{{ $t('dashboard.viewChangelog') }}</router-link>
           </template>
 
           <div v-if="configStore.changelog.length === 0" class="empty-placeholder">
-            <n-empty description="No recent activity" size="small" />
+            <n-empty :description="$t('dashboard.noRecentActivity')" size="small" />
           </div>
 
           <div v-else class="activity-list">

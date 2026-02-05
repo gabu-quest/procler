@@ -3,13 +3,13 @@
     <div class="page-header">
       <div class="header-title">
         <img src="/procler.png" alt="Procler logo" class="config-logo" />
-        <h1>Config</h1>
+        <h1>{{ $t('config.title') }}</h1>
       </div>
       <n-button type="primary" @click="handleReload" :loading="store.loading">
         <template #icon>
           <PhArrowsClockwise />
         </template>
-        Reload Config
+        {{ $t('config.reloadConfig') }}
       </n-button>
     </div>
 
@@ -22,28 +22,28 @@
         <n-grid :cols="2" :x-gap="20" :y-gap="20" responsive="screen" :item-responsive="true">
           <!-- Config Status Card -->
           <n-gi span="2 m:1">
-            <n-card title="Configuration" class="status-card">
+            <n-card :title="$t('config.configuration')" class="status-card">
               <template #header-extra>
                 <n-tag :type="store.info.config_exists ? 'success' : 'warning'" size="small">
-                  {{ store.info.config_exists ? 'Active' : 'Not Found' }}
+                  {{ store.info.config_exists ? $t('common.active') : $t('common.notFound') }}
                 </n-tag>
               </template>
 
               <n-descriptions :column="1" label-placement="left">
-                <n-descriptions-item label="Config Directory">
+                <n-descriptions-item :label="$t('config.labels.configDirectory')">
                   <n-code>{{ store.info.config_dir }}</n-code>
                 </n-descriptions-item>
-                <n-descriptions-item label="Config File">
+                <n-descriptions-item :label="$t('config.labels.configFile')">
                   <n-code>{{ store.info.config_file }}</n-code>
                   <n-tag
                     :type="store.info.config_exists ? 'success' : 'default'"
                     size="small"
                     style="margin-left: 0.5rem"
                   >
-                    {{ store.info.config_exists ? 'exists' : 'missing' }}
+                    {{ store.info.config_exists ? $t('common.exists') : $t('common.missing') }}
                   </n-tag>
                 </n-descriptions-item>
-                <n-descriptions-item label="Version">
+                <n-descriptions-item :label="$t('config.labels.version')">
                   v{{ store.info.version }}
                 </n-descriptions-item>
               </n-descriptions>
@@ -52,27 +52,27 @@
 
           <!-- Stats Card -->
           <n-gi span="2 m:1">
-            <n-card title="Defined in Config" class="stats-card">
+            <n-card :title="$t('config.definedInConfig')" class="stats-card">
               <div class="stats-grid">
                 <div class="stat-item">
                   <PhGear class="stat-icon" />
                   <div class="stat-value">{{ store.info.stats.processes }}</div>
-                  <div class="stat-label">Processes</div>
+                  <div class="stat-label">{{ $t('nav.processes') }}</div>
                 </div>
                 <div class="stat-item">
                   <PhStack class="stat-icon" />
                   <div class="stat-value">{{ store.info.stats.groups }}</div>
-                  <div class="stat-label">Groups</div>
+                  <div class="stat-label">{{ $t('nav.groups') }}</div>
                 </div>
                 <div class="stat-item">
                   <PhListChecks class="stat-icon" />
                   <div class="stat-value">{{ store.info.stats.recipes }}</div>
-                  <div class="stat-label">Recipes</div>
+                  <div class="stat-label">{{ $t('nav.recipes') }}</div>
                 </div>
                 <div class="stat-item">
                   <PhCodeBlock class="stat-icon" />
                   <div class="stat-value">{{ store.info.stats.snippets }}</div>
-                  <div class="stat-label">Snippets</div>
+                  <div class="stat-label">{{ $t('nav.snippets') }}</div>
                 </div>
               </div>
             </n-card>
@@ -80,18 +80,18 @@
 
           <!-- Variables Card -->
           <n-gi span="2 m:1">
-            <n-card title="Variables" class="vars-card">
+            <n-card :title="$t('config.variables')" class="vars-card">
               <template #header-extra>
                 <n-tag :type="varsData.length > 0 ? 'info' : 'default'" size="small">
-                  {{ varsData.length }} vars
+                  {{ $t('config.variablesCount', { count: varsData.length }) }}
                 </n-tag>
               </template>
 
               <div v-if="varsData.length === 0" class="vars-empty">
-                <n-empty description="No variables defined" size="small">
+                <n-empty :description="$t('config.noVariables')" size="small">
                   <template #extra>
                     <p class="empty-hint">
-                      Add a <code>vars:</code> block in <code>.procler/config.yaml</code>
+                      {{ $t('config.addVarsHint', { vars: '', config: '' }) }}<code>vars:</code> <code>.procler/config.yaml</code>
                     </p>
                   </template>
                 </n-empty>
@@ -99,7 +99,7 @@
 
               <div v-else>
                 <p class="vars-hint">
-                  Use <code>${VAR}</code> in commands, container names, and recipe exec steps.
+                  {{ $t('config.varsUsageHint', { syntax: '' }) }}<code>${VAR}</code>
                 </p>
                 <n-data-table
                   :columns="varsColumns"
@@ -113,36 +113,36 @@
 
           <!-- Changelog Card -->
           <n-gi span="2">
-            <n-card title="Changelog" class="changelog-card">
+            <n-card :title="$t('config.changelog')" class="changelog-card">
               <template #header-extra>
                 <n-space size="small">
                   <n-button size="small" @click="loadChangelog">
                     <template #icon>
                       <PhArrowsClockwise />
                     </template>
-                    Refresh
+                    {{ $t('common.refresh') }}
                   </n-button>
                   <n-tag
                     :type="store.info.changelog_exists ? 'success' : 'default'"
                     size="small"
                   >
-                    {{ store.info.changelog_exists ? 'tracking' : 'no changelog' }}
+                    {{ store.info.changelog_exists ? $t('common.tracking') : $t('common.noChangelog') }}
                   </n-tag>
                 </n-space>
               </template>
 
               <div v-if="!store.info.changelog_exists" class="changelog-empty">
-                <n-empty description="No changelog yet" size="small">
+                <n-empty :description="$t('config.noChangelog')" size="small">
                   <template #extra>
                     <p class="empty-hint">
-                      Actions will be logged to <code>changelog.log</code>
+                      {{ $t('config.changelogHint', { file: '' }) }}<code>changelog.log</code>
                     </p>
                   </template>
                 </n-empty>
               </div>
 
               <div v-else-if="store.changelog.length === 0" class="changelog-empty">
-                <n-empty description="Changelog is empty" size="small" />
+                <n-empty :description="$t('config.changelogEmpty')" size="small" />
               </div>
 
               <div v-else class="changelog-viewer">
@@ -159,7 +159,7 @@
 
           <!-- Config Processes Preview -->
           <n-gi v-if="store.processes.length > 0" span="2">
-            <n-card title="Process Definitions">
+            <n-card :title="$t('config.processDefinitions')">
               <n-data-table
                 :columns="processColumns"
                 :data="store.processes"
@@ -176,6 +176,7 @@
 
 <script setup lang="ts">
 import { h, onMounted, computed } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   NButton,
   NCard,
@@ -203,6 +204,7 @@ import {
 import { useConfigStore, type ConfigProcess } from "@/stores/config";
 import { formatChangelogEntry, getChangelogAction, type ChangelogEntry } from "@/utils/changelog";
 
+const { t } = useI18n();
 const store = useConfigStore();
 const message = useMessage();
 
@@ -219,37 +221,37 @@ const varsData = computed<ConfigVar[]>(() => {
   }));
 });
 
-const varsColumns: DataTableColumns<ConfigVar> = [
+const varsColumns = computed<DataTableColumns<ConfigVar>>(() => [
   {
-    title: "Name",
+    title: t('config.columns.name'),
     key: "name",
     width: 160,
     render: (row) => h(NTag, { size: "small", bordered: false }, { default: () => row.name }),
   },
   {
-    title: "Value",
+    title: t('config.columns.value'),
     key: "value",
     ellipsis: { tooltip: true },
     render: (row) => h(NCode, null, { default: () => row.value }),
   },
-];
+]);
 
-const processColumns: DataTableColumns<ConfigProcess> = [
-  { title: "Name", key: "name", width: 150 },
+const processColumns = computed<DataTableColumns<ConfigProcess>>(() => [
+  { title: t('config.columns.name'), key: "name", width: 150 },
   {
-    title: "Context",
+    title: t('config.columns.context'),
     key: "context",
     width: 100,
     render: (row) => h(NTag, { size: "small", bordered: false }, { default: () => row.context }),
   },
-  { title: "Command", key: "command", ellipsis: { tooltip: true } },
+  { title: t('config.columns.command'), key: "command", ellipsis: { tooltip: true } },
   {
-    title: "Container",
+    title: t('config.columns.container'),
     key: "container",
     width: 120,
     render: (row) => row.container ?? "-",
   },
-];
+]);
 
 function getEntryClass(entry: ChangelogEntry): string {
   const action = getChangelogAction(entry);
@@ -271,11 +273,11 @@ async function loadChangelog() {
 async function handleReload() {
   const result = await store.reloadConfig();
   if (result.success) {
-    message.success("Config reloaded");
+    message.success(t('config.messages.reloaded'));
     await loadChangelog();
     await store.fetchProcesses();
   } else {
-    message.error(result.error || "Failed to reload");
+    message.error(result.error || t('config.messages.reloadFailed'));
   }
 }
 

@@ -1,12 +1,12 @@
 <template>
   <div class="processes-view">
     <div class="page-header">
-      <h1>Processes</h1>
+      <h1>{{ $t('processes.title') }}</h1>
       <n-button type="primary" @click="showCreateModal = true">
         <template #icon>
           <PhPlus />
         </template>
-        Define Process
+        {{ $t('processes.defineProcess') }}
       </n-button>
     </div>
 
@@ -21,36 +21,36 @@
           <template #icon>
             <PhArrowsClockwise />
           </template>
-          Retry
+          {{ $t('common.retry') }}
         </n-button>
       </div>
 
       <div v-else class="table-shell">
         <div class="table-toolbar">
           <div class="table-title">
-            <span class="title-label">Process Registry</span>
-            <span class="title-sub">Live runtime inventory</span>
+            <span class="title-label">{{ $t('processes.processRegistry') }}</span>
+            <span class="title-sub">{{ $t('processes.liveInventory') }}</span>
           </div>
           <div class="table-meta">
             <n-tag size="small" type="success" :bordered="false">
               <template #icon>
                 <PhPlay weight="fill" />
               </template>
-              {{ store.runningCount }} running
+              {{ $t('processes.runningCount', { count: store.runningCount }) }}
             </n-tag>
             <n-tag size="small" :bordered="false">
               <template #icon>
                 <PhListBullets />
               </template>
-              {{ store.processes.length }} total
+              {{ $t('processes.totalCount', { count: store.processes.length }) }}
             </n-tag>
           </div>
         </div>
 
         <div v-if="store.processes.length === 0" class="empty-table">
-          <n-empty description="No processes defined" size="small">
+          <n-empty :description="$t('processes.noProcesses')" size="small">
             <template #extra>
-              <p class="empty-hint">Define processes in <code>.procler/config.yaml</code> or via CLI.</p>
+              <p class="empty-hint">{{ $t('processes.defineHint', { config: '' }) }}<code>.procler/config.yaml</code></p>
             </template>
           </n-empty>
         </div>
@@ -74,37 +74,37 @@
       </div>
       <template #footer>
         <n-space justify="end">
-          <n-button @click="showCommandModal = false">Close</n-button>
-          <n-button type="primary" :disabled="!selectedCommand" @click="copyCommand">Copy</n-button>
+          <n-button @click="showCommandModal = false">{{ $t('common.close') }}</n-button>
+          <n-button type="primary" :disabled="!selectedCommand" @click="copyCommand">{{ $t('common.copy') }}</n-button>
         </n-space>
       </template>
     </n-modal>
 
     <!-- Create Process Modal -->
-    <n-modal v-model:show="showCreateModal" preset="dialog" title="Define Process">
+    <n-modal v-model:show="showCreateModal" preset="dialog" :title="$t('processes.modal.defineTitle')">
       <n-form ref="formRef" :model="formData" :rules="formRules">
-        <n-form-item label="Name" path="name">
-          <n-input v-model:value="formData.name" placeholder="my-api" />
+        <n-form-item :label="$t('processes.form.name')" path="name">
+          <n-input v-model:value="formData.name" :placeholder="$t('processes.form.namePlaceholder')" />
         </n-form-item>
-        <n-form-item label="Command" path="command">
-          <n-input v-model:value="formData.command" placeholder="uvicorn main:app --port 8000" />
+        <n-form-item :label="$t('processes.form.command')" path="command">
+          <n-input v-model:value="formData.command" :placeholder="$t('processes.form.commandPlaceholder')" />
         </n-form-item>
-        <n-form-item label="Context" path="context">
+        <n-form-item :label="$t('processes.form.context')" path="context">
           <n-select v-model:value="formData.context" :options="contextOptions" />
         </n-form-item>
-        <n-form-item v-if="formData.context === 'docker'" label="Container" path="container">
-          <n-input v-model:value="formData.container" placeholder="container-name" />
+        <n-form-item v-if="formData.context === 'docker'" :label="$t('processes.form.container')" path="container">
+          <n-input v-model:value="formData.container" :placeholder="$t('processes.form.containerPlaceholder')" />
         </n-form-item>
-        <n-form-item label="Working Directory" path="cwd">
-          <n-input v-model:value="formData.cwd" placeholder="/path/to/project (optional)" />
+        <n-form-item :label="$t('processes.form.workingDirectory')" path="cwd">
+          <n-input v-model:value="formData.cwd" :placeholder="$t('processes.form.workingDirectoryPlaceholder')" />
         </n-form-item>
-        <n-form-item label="Tags" path="tags">
-          <n-input v-model:value="formData.tags" placeholder="api,backend (optional)" />
+        <n-form-item :label="$t('processes.form.tags')" path="tags">
+          <n-input v-model:value="formData.tags" :placeholder="$t('processes.form.tagsPlaceholder')" />
         </n-form-item>
       </n-form>
       <template #action>
-        <n-button @click="showCreateModal = false">Cancel</n-button>
-        <n-button type="primary" @click="handleCreate">Create</n-button>
+        <n-button @click="showCreateModal = false">{{ $t('common.cancel') }}</n-button>
+        <n-button type="primary" @click="handleCreate">{{ $t('common.create') }}</n-button>
       </template>
     </n-modal>
   </div>
@@ -113,6 +113,7 @@
 <script setup lang="ts">
 import { ref, onMounted, h, computed } from "vue";
 import { useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import {
   NButton,
   NDataTable,
@@ -135,6 +136,7 @@ import { useProcessStore, type Process } from "@/stores/processes";
 import { useWebSocket } from "@/composables/useWebSocket";
 
 const router = useRouter();
+const { t } = useI18n();
 const store = useProcessStore();
 const message = useMessage();
 const { connect, subscribeStatus } = useWebSocket();
@@ -153,15 +155,15 @@ const formData = ref({
   tags: "",
 });
 
-const formRules = {
-  name: { required: true, message: "Name is required" },
-  command: { required: true, message: "Command is required" },
-};
+const formRules = computed(() => ({
+  name: { required: true, message: t('processes.form.nameRequired') },
+  command: { required: true, message: t('processes.form.commandRequired') },
+}));
 
-const contextOptions = [
-  { label: "Local", value: "local" },
-  { label: "Docker", value: "docker" },
-];
+const contextOptions = computed(() => [
+  { label: t('common.local'), value: "local" },
+  { label: t('common.docker'), value: "docker" },
+]);
 
 function statusColor(status: string) {
   switch (status) {
@@ -198,16 +200,16 @@ function linuxStateLabel(code?: string, name?: string) {
 }
 
 const commandModalTitle = computed(() =>
-  selectedCommandName.value ? `Command — ${selectedCommandName.value}` : "Command"
+  selectedCommandName.value ? `${t('processes.modal.commandTitle')} — ${selectedCommandName.value}` : t('processes.modal.commandTitle')
 );
 
 async function copyCommand() {
   if (!selectedCommand.value) return;
   try {
     await navigator.clipboard.writeText(selectedCommand.value);
-    message.success("Command copied");
+    message.success(t('processes.messages.commandCopied'));
   } catch {
-    message.error("Failed to copy command");
+    message.error(t('processes.messages.copyFailed'));
   }
 }
 
@@ -217,9 +219,9 @@ function openCommand(row: Process) {
   showCommandModal.value = true;
 }
 
-const columns: DataTableColumns<Process> = [
+const columns = computed<DataTableColumns<Process>>(() => [
   {
-    title: "Name",
+    title: t('processes.columns.name'),
     key: "name",
     minWidth: 180,
     render: (row) =>
@@ -235,7 +237,7 @@ const columns: DataTableColumns<Process> = [
       ),
   },
   {
-    title: "Status",
+    title: t('processes.columns.status'),
     key: "status",
     width: 170,
     render: (row) =>
@@ -251,14 +253,14 @@ const columns: DataTableColumns<Process> = [
       ]),
   },
   {
-    title: "PID",
+    title: t('processes.columns.pid'),
     key: "pid",
     width: 100,
     render: (row) =>
       h("span", { class: "pid-cell" }, row.pid ?? "-"),
   },
   {
-    title: "Context",
+    title: t('processes.columns.context'),
     key: "context",
     width: 110,
     render: (row) => {
@@ -268,7 +270,7 @@ const columns: DataTableColumns<Process> = [
     },
   },
   {
-    title: "Command",
+    title: t('processes.columns.command'),
     key: "command",
     width: 420,
     ellipsis: { tooltip: true },
@@ -288,7 +290,7 @@ const columns: DataTableColumns<Process> = [
       ),
   },
   {
-    title: "Actions",
+    title: t('processes.columns.actions'),
     key: "actions",
     width: 220,
     render: (row) =>
@@ -299,8 +301,8 @@ const columns: DataTableColumns<Process> = [
             size: "small",
             quaternary: true,
             circle: true,
-            title: "View details",
-            "aria-label": `View details for ${row.name}`,
+            title: t('processes.actions.viewDetails'),
+            "aria-label": `${t('processes.actions.viewDetails')} ${row.name}`,
             onClick: () => router.push(`/process/${row.name}`),
           },
           { icon: () => h(PhEye, { weight: "regular" }) }
@@ -312,8 +314,8 @@ const columns: DataTableColumns<Process> = [
             quaternary: true,
             type: "success",
             circle: true,
-            title: "Start process",
-            "aria-label": `Start ${row.name}`,
+            title: t('processes.actions.startProcess'),
+            "aria-label": `${t('common.start')} ${row.name}`,
             loading: store.isActionLoading(row.name, "start"),
             disabled: row.status === "running" || store.isActionLoading(row.name, "start"),
             onClick: () => handleStart(row.name),
@@ -327,8 +329,8 @@ const columns: DataTableColumns<Process> = [
             quaternary: true,
             type: "warning",
             circle: true,
-            title: "Stop process",
-            "aria-label": `Stop ${row.name}`,
+            title: t('processes.actions.stopProcess'),
+            "aria-label": `${t('common.stop')} ${row.name}`,
             loading: store.isActionLoading(row.name, "stop"),
             disabled: row.status !== "running" || store.isActionLoading(row.name, "stop"),
             onClick: () => handleStop(row.name),
@@ -342,8 +344,8 @@ const columns: DataTableColumns<Process> = [
             quaternary: true,
             type: "info",
             circle: true,
-            title: "Restart process",
-            "aria-label": `Restart ${row.name}`,
+            title: t('processes.actions.restartProcess'),
+            "aria-label": `${t('common.restart')} ${row.name}`,
             loading: store.isActionLoading(row.name, "restart"),
             disabled: store.isActionLoading(row.name, "restart"),
             onClick: () => handleRestart(row.name),
@@ -363,24 +365,24 @@ const columns: DataTableColumns<Process> = [
                 quaternary: true,
                 type: "error",
                 circle: true,
-                title: "Remove process",
-                "aria-label": `Remove ${row.name}`,
+                title: t('processes.actions.removeProcess'),
+                "aria-label": `${t('common.remove')} ${row.name}`,
                 loading: store.isActionLoading(row.name, "remove"),
                 disabled: store.isActionLoading(row.name, "remove"),
               },
               { icon: () => h(PhTrash, { weight: "regular" }) }
             ),
-            default: () => `Remove process "${row.name}"?`,
+            default: () => t('processes.messages.removeConfirm', { name: row.name }),
           }
         ),
       ]),
   },
-];
+]);
 
 async function handleStart(name: string) {
   const result = await store.startProcess(name);
   if (result.success) {
-    message.success(`Started ${name}`);
+    message.success(t('processes.messages.started', { name }));
   } else {
     message.error(result.error);
   }
@@ -389,7 +391,7 @@ async function handleStart(name: string) {
 async function handleStop(name: string) {
   const result = await store.stopProcess(name);
   if (result.success) {
-    message.success(`Stopped ${name}`);
+    message.success(t('processes.messages.stopped', { name }));
   } else {
     message.error(result.error);
   }
@@ -398,7 +400,7 @@ async function handleStop(name: string) {
 async function handleRestart(name: string) {
   const result = await store.restartProcess(name);
   if (result.success) {
-    message.success(`Restarted ${name}`);
+    message.success(t('processes.messages.restarted', { name }));
   } else {
     message.error(result.error);
   }
@@ -407,7 +409,7 @@ async function handleRestart(name: string) {
 async function handleRemove(name: string) {
   const result = await store.removeProcess(name);
   if (result.success) {
-    message.success(`Removed ${name}`);
+    message.success(t('processes.messages.removed', { name }));
   } else {
     message.error(result.error);
   }
@@ -423,7 +425,7 @@ async function handleCreate() {
     tags: formData.value.tags || undefined,
   });
   if (result.success) {
-    message.success(`Created ${formData.value.name}`);
+    message.success(t('processes.messages.created', { name: formData.value.name }));
     showCreateModal.value = false;
     formData.value = { name: "", command: "", context: "local", container: "", cwd: "", tags: "" };
   } else {

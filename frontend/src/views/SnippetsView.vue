@@ -1,12 +1,12 @@
 <template>
   <div class="snippets-view">
     <div class="page-header">
-      <h1>Snippets</h1>
+      <h1>{{ $t('snippets.title') }}</h1>
       <n-button type="primary" @click="showCreateModal = true">
         <template #icon>
           <PhPlus />
         </template>
-        Save Snippet
+        {{ $t('snippets.saveSnippet') }}
       </n-button>
     </div>
 
@@ -16,9 +16,9 @@
       </div>
 
       <div v-else-if="store.snippets.length === 0" class="empty-state">
-        <n-empty description="No snippets yet">
+        <n-empty :description="$t('snippets.noSnippets')">
           <template #extra>
-            <n-button type="primary" @click="showCreateModal = true">Create your first snippet</n-button>
+            <n-button type="primary" @click="showCreateModal = true">{{ $t('snippets.createFirst') }}</n-button>
           </template>
         </n-empty>
       </div>
@@ -31,13 +31,13 @@
                 <n-button
                   size="small"
                   type="primary"
-                  :aria-label="`Run snippet ${snippet.name}`"
+                  :aria-label="$t('common.run') + ' ' + snippet.name"
                   @click="handleRun(snippet.name)"
                 >
                   <template #icon>
                     <PhPlay weight="fill" />
                   </template>
-                  Run
+                  {{ $t('common.run') }}
                 </n-button>
                 <n-popconfirm @positive-click="handleRemove(snippet.name)">
                   <template #trigger>
@@ -45,15 +45,15 @@
                       size="small"
                       quaternary
                       type="error"
-                      :aria-label="`Delete snippet ${snippet.name}`"
-                      title="Delete snippet"
+                      :aria-label="$t('common.delete') + ' ' + snippet.name"
+                      :title="$t('common.delete')"
                     >
                       <template #icon>
                         <PhTrash />
                       </template>
                     </n-button>
                   </template>
-                  Delete snippet "{{ snippet.name }}"?
+                  {{ $t('snippets.deleteConfirm', { name: snippet.name }) }}
                 </n-popconfirm>
               </n-space>
             </template>
@@ -78,50 +78,50 @@
     </n-spin>
 
     <!-- Create Snippet Modal -->
-    <n-modal v-model:show="showCreateModal" preset="dialog" title="Save Snippet">
+    <n-modal v-model:show="showCreateModal" preset="dialog" :title="$t('snippets.modal.saveTitle')">
       <n-form ref="formRef" :model="formData" :rules="formRules">
-        <n-form-item label="Name" path="name">
-          <n-input v-model:value="formData.name" placeholder="rebuild-api" />
+        <n-form-item :label="$t('snippets.form.name')" path="name">
+          <n-input v-model:value="formData.name" :placeholder="$t('snippets.form.namePlaceholder')" />
         </n-form-item>
-        <n-form-item label="Command" path="command">
+        <n-form-item :label="$t('snippets.form.command')" path="command">
           <n-input
             v-model:value="formData.command"
             type="textarea"
             :autosize="{ minRows: 2, maxRows: 6 }"
-            placeholder="docker compose build api"
+            :placeholder="$t('snippets.form.commandPlaceholder')"
           />
         </n-form-item>
-        <n-form-item label="Description" path="description">
+        <n-form-item :label="$t('snippets.form.description')" path="description">
           <n-input
             v-model:value="formData.description"
             type="textarea"
             :autosize="{ minRows: 1, maxRows: 3 }"
-            placeholder="What this snippet does (optional)"
+            :placeholder="$t('snippets.form.descriptionPlaceholder')"
           />
         </n-form-item>
-        <n-form-item label="Tags" path="tags">
-          <n-input v-model:value="formData.tags" placeholder="docker,build (optional)" />
+        <n-form-item :label="$t('snippets.form.tags')" path="tags">
+          <n-input v-model:value="formData.tags" :placeholder="$t('snippets.form.tagsPlaceholder')" />
         </n-form-item>
       </n-form>
       <template #action>
-        <n-button @click="showCreateModal = false">Cancel</n-button>
-        <n-button type="primary" @click="handleCreate">Save</n-button>
+        <n-button @click="showCreateModal = false">{{ $t('common.cancel') }}</n-button>
+        <n-button type="primary" @click="handleCreate">{{ $t('common.save') }}</n-button>
       </template>
     </n-modal>
 
     <!-- Run Result Modal -->
-    <n-modal v-model:show="showResultModal" preset="dialog" :title="`Result: ${runResult?.snippet ?? ''}`">
+    <n-modal v-model:show="showResultModal" preset="dialog" :title="$t('snippets.modal.resultTitle', { name: runResult?.snippet ?? '' })">
       <template v-if="runResult">
-        <n-alert v-if="runResult.success" type="success" title="Completed successfully">
-          Exit code: {{ runResult.exit_code }}
+        <n-alert v-if="runResult.success" type="success" :title="$t('snippets.result.completedSuccessfully')">
+          {{ $t('snippets.result.exitCode', { code: runResult.exit_code }) }}
         </n-alert>
-        <n-alert v-else type="error" :title="runResult.error ?? 'Execution failed'">
-          Exit code: {{ runResult.exit_code }}
+        <n-alert v-else type="error" :title="runResult.error ?? $t('snippets.result.executionFailed')">
+          {{ $t('snippets.result.exitCode', { code: runResult.exit_code }) }}
         </n-alert>
-        <n-divider>Output</n-divider>
-        <n-code :code="runResult.stdout || '(no output)'" language="bash" word-wrap />
+        <n-divider>{{ $t('snippets.result.output') }}</n-divider>
+        <n-code :code="runResult.stdout || $t('snippets.result.noOutput')" language="bash" word-wrap />
         <template v-if="runResult.stderr">
-          <n-divider>Stderr</n-divider>
+          <n-divider>{{ $t('snippets.result.stderr') }}</n-divider>
           <n-code :code="runResult.stderr" language="bash" word-wrap />
         </template>
       </template>
@@ -130,7 +130,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
 import {
   NButton,
   NCard,
@@ -153,6 +154,7 @@ import {
 import { PhPlus, PhPlay, PhTrash } from "@phosphor-icons/vue";
 import { useSnippetStore } from "@/stores/snippets";
 
+const { t } = useI18n();
 const store = useSnippetStore();
 const message = useMessage();
 
@@ -175,10 +177,10 @@ const formData = ref({
   tags: "",
 });
 
-const formRules = {
-  name: { required: true, message: "Name is required" },
-  command: { required: true, message: "Command is required" },
-};
+const formRules = computed(() => ({
+  name: { required: true, message: t('snippets.form.nameRequired') },
+  command: { required: true, message: t('snippets.form.commandRequired') },
+}));
 
 async function handleCreate() {
   const result = await store.createSnippet({
@@ -188,7 +190,7 @@ async function handleCreate() {
     tags: formData.value.tags || undefined,
   });
   if (result.success) {
-    message.success(`Saved snippet: ${formData.value.name}`);
+    message.success(t('snippets.messages.saved', { name: formData.value.name }));
     showCreateModal.value = false;
     formData.value = { name: "", command: "", description: "", tags: "" };
   } else {
@@ -199,14 +201,14 @@ async function handleCreate() {
 async function handleRemove(name: string) {
   const result = await store.removeSnippet(name);
   if (result.success) {
-    message.success(`Removed snippet: ${name}`);
+    message.success(t('snippets.messages.removed', { name }));
   } else {
     message.error(result.error);
   }
 }
 
 async function handleRun(name: string) {
-  message.info(`Running snippet: ${name}`);
+  message.info(t('snippets.messages.running', { name }));
   const result = await store.runSnippet(name);
   runResult.value = { ...result.data, snippet: name, success: result.success, error: result.error };
   showResultModal.value = true;

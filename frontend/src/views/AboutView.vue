@@ -7,21 +7,20 @@
           <img src="/procler.png" alt="Procler logo" class="hero-logo" />
         </div>
         <div class="hero-copy">
-          <div class="hero-kicker">LLM-first process manager</div>
+          <div class="hero-kicker">{{ $t('about.tagline') }}</div>
           <h1>Procler</h1>
           <p class="hero-tagline">
-            Orchestrate local and Docker processes with a unified CLI and a real-time dashboard.
-            Build repeatable recipes, keep logs close, and ship with confidence.
+            {{ $t('about.description') }}
           </p>
           <div class="hero-actions">
-            <n-button type="primary" @click="router.push('/processes')">Open Processes</n-button>
-            <n-button secondary @click="router.push('/config')">View Config</n-button>
+            <n-button type="primary" @click="router.push('/processes')">{{ $t('about.openProcesses') }}</n-button>
+            <n-button secondary @click="router.push('/config')">{{ $t('about.viewConfig') }}</n-button>
           </div>
           <div class="hero-tags">
-            <n-tag size="small" :bordered="false">local</n-tag>
-            <n-tag size="small" :bordered="false">docker</n-tag>
-            <n-tag size="small" :bordered="false">recipes</n-tag>
-            <n-tag size="small" :bordered="false">vars</n-tag>
+            <n-tag size="small" :bordered="false">{{ $t('about.tags.local') }}</n-tag>
+            <n-tag size="small" :bordered="false">{{ $t('about.tags.docker') }}</n-tag>
+            <n-tag size="small" :bordered="false">{{ $t('about.tags.recipes') }}</n-tag>
+            <n-tag size="small" :bordered="false">{{ $t('about.tags.vars') }}</n-tag>
           </div>
         </div>
       </div>
@@ -29,26 +28,87 @@
 
     <n-grid :cols="3" :x-gap="20" :y-gap="20" responsive="screen" :item-responsive="true">
       <n-gi span="3 m:1">
-        <n-card title="What It Does" class="info-card">
+        <n-card :title="$t('about.whatItDoes.title')" class="info-card">
           <p>
-            Procler keeps process control deterministic: define once, start and stop safely, and
-            get status updates and logs in one place. The UI and CLI share the same core logic.
+            {{ $t('about.whatItDoes.description') }}
           </p>
         </n-card>
       </n-gi>
       <n-gi span="3 m:1">
-        <n-card title="Concepts" class="info-card">
+        <n-card :title="$t('about.concepts.title')" class="info-card">
           <ul class="bullet-list">
-            <li>Processes live in a single registry.</li>
-            <li>Contexts decide where commands run (local or docker).</li>
-            <li>Recipes orchestrate multi-step workflows.</li>
-            <li>Vars let you template commands with ${VAR}.</li>
+            <li>{{ $t('about.concepts.items.processes') }}</li>
+            <li>{{ $t('about.concepts.items.contexts') }}</li>
+            <li>{{ $t('about.concepts.items.recipes') }}</li>
+            <li>{{ $t('about.concepts.items.vars') }}</li>
           </ul>
         </n-card>
       </n-gi>
       <n-gi span="3 m:1">
-        <n-card title="Quick Start" class="info-card">
+        <n-card :title="$t('about.quickStart.title')" class="info-card">
           <n-code :code="quickStart" class="quick-code" />
+        </n-card>
+      </n-gi>
+
+      <!-- Tech Stack Card -->
+      <n-gi span="3 m:1">
+        <n-card :title="$t('about.techStack.title')" class="info-card tech-stack-card">
+          <div class="tech-grid">
+            <div class="tech-item">
+              <span class="tech-label">{{ $t('about.techStack.backend') }}</span>
+              <span class="tech-value">Python 3.12+, FastAPI</span>
+            </div>
+            <div class="tech-item">
+              <span class="tech-label">{{ $t('about.techStack.database') }}</span>
+              <span class="tech-value">SQLite + sqler</span>
+            </div>
+            <div class="tech-item">
+              <span class="tech-label">{{ $t('about.techStack.frontend') }}</span>
+              <span class="tech-value">Vue 3, Vite, Pinia</span>
+            </div>
+            <div class="tech-item">
+              <span class="tech-label">{{ $t('about.techStack.cli') }}</span>
+              <span class="tech-value">Click</span>
+            </div>
+            <div class="tech-item">
+              <span class="tech-label">{{ $t('about.techStack.realtime') }}</span>
+              <span class="tech-value">WebSockets</span>
+            </div>
+          </div>
+        </n-card>
+      </n-gi>
+
+      <!-- Links Card -->
+      <n-gi span="3 m:1">
+        <n-card :title="$t('about.links.title')" class="info-card links-card">
+          <div class="links-list">
+            <a href="https://github.com/gabu-quest/procler" target="_blank" rel="noopener noreferrer" class="link-item">
+              <PhGithubLogo class="link-icon" />
+              <span>{{ $t('about.links.github') }}</span>
+              <PhArrowSquareOut class="link-external" />
+            </a>
+            <a href="https://pypi.org/project/procler/" target="_blank" rel="noopener noreferrer" class="link-item">
+              <PhPackage class="link-icon" />
+              <span>{{ $t('about.links.pypi') }}</span>
+              <PhArrowSquareOut class="link-external" />
+            </a>
+          </div>
+        </n-card>
+      </n-gi>
+
+      <!-- Version & License Card -->
+      <n-gi span="3 m:1">
+        <n-card class="info-card version-card">
+          <div class="version-grid">
+            <div class="version-item">
+              <span class="version-label">{{ $t('about.version') }}</span>
+              <n-tag type="primary" size="small">v{{ version }}</n-tag>
+            </div>
+            <div class="version-item">
+              <span class="version-label">{{ $t('about.license') }}</span>
+              <n-tag size="small">MIT</n-tag>
+            </div>
+          </div>
         </n-card>
       </n-gi>
     </n-grid>
@@ -56,15 +116,33 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { NButton, NCard, NGrid, NGi, NTag, NCode } from "naive-ui";
+import { PhGithubLogo, PhPackage, PhArrowSquareOut } from "@phosphor-icons/vue";
 
 const router = useRouter();
+
+const version = ref("0.1.0");
 
 const quickStart = `procler define --name api --command "uvicorn main:app"
 procler start api
 procler status api
 procler logs api --tail 50`;
+
+onMounted(async () => {
+  try {
+    const response = await fetch("/api/health");
+    if (response.ok) {
+      const data = await response.json();
+      if (data.version) {
+        version.value = data.version;
+      }
+    }
+  } catch {
+    // Keep default version
+  }
+});
 </script>
 
 <style scoped>
@@ -173,6 +251,90 @@ procler logs api --tail 50`;
   font-size: 0.85rem;
   line-height: 1.6;
   white-space: pre;
+}
+
+/* Tech Stack Card */
+.tech-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.tech-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--n-border-color);
+}
+
+.tech-item:last-child {
+  border-bottom: none;
+}
+
+.tech-label {
+  font-size: 0.8125rem;
+  color: var(--n-text-color-3);
+}
+
+.tech-value {
+  font-size: 0.875rem;
+  color: var(--n-text-color-1);
+  font-family: var(--n-font-family-mono);
+}
+
+/* Links Card */
+.links-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.link-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--n-border-radius);
+  background: var(--n-code-color);
+  color: var(--n-text-color-1);
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.link-item:hover {
+  background: var(--n-primary-color);
+  color: var(--n-base-color);
+}
+
+.link-icon {
+  font-size: 1.25rem;
+}
+
+.link-external {
+  margin-left: auto;
+  font-size: 0.875rem;
+  opacity: 0.6;
+}
+
+/* Version Card */
+.version-grid {
+  display: flex;
+  justify-content: space-around;
+  gap: 2rem;
+}
+
+.version-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.version-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--n-text-color-3);
 }
 
 @media (max-width: 900px) {

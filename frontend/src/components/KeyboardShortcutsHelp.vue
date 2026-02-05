@@ -1,15 +1,15 @@
 <template>
-  <n-modal v-model:show="showHelp" preset="card" title="Keyboard Shortcuts" style="max-width: 400px">
+  <n-modal v-model:show="showHelp" preset="card" :title="$t('shortcuts.title')" style="max-width: 400px">
     <div class="shortcuts-list">
       <div class="shortcuts-section">
-        <h4>Navigation</h4>
+        <h4>{{ $t('shortcuts.navigation') }}</h4>
         <div v-for="shortcut in navigationShortcuts" :key="shortcut.key" class="shortcut-row">
           <kbd class="shortcut-key">{{ shortcut.key }}</kbd>
           <span class="shortcut-desc">{{ shortcut.description }}</span>
         </div>
       </div>
       <div class="shortcuts-section">
-        <h4>General</h4>
+        <h4>{{ $t('shortcuts.general') }}</h4>
         <div v-for="shortcut in generalShortcuts" :key="shortcut.key" class="shortcut-row">
           <kbd class="shortcut-key">{{ shortcut.key }}</kbd>
           <span class="shortcut-desc">{{ shortcut.description }}</span>
@@ -17,24 +17,38 @@
       </div>
     </div>
     <template #footer>
-      <n-button @click="closeHelp">Close</n-button>
+      <n-button @click="closeHelp">{{ $t('common.close') }}</n-button>
     </template>
   </n-modal>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { NModal, NButton } from "naive-ui";
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts";
 
-const { shortcuts, showHelp, closeHelp } = useKeyboardShortcuts();
+const { t } = useI18n();
+const { showHelp, closeHelp } = useKeyboardShortcuts();
+
+const shortcuts = computed(() => [
+  { key: "g d", description: t('shortcuts.goToDashboard') },
+  { key: "g p", description: t('shortcuts.goToProcesses') },
+  { key: "g g", description: t('shortcuts.goToGroups') },
+  { key: "g r", description: t('shortcuts.goToRecipes') },
+  { key: "g s", description: t('shortcuts.goToSnippets') },
+  { key: "g c", description: t('shortcuts.goToConfig') },
+  { key: "g a", description: t('shortcuts.goToAbout') },
+  { key: "?", description: t('shortcuts.showShortcuts') },
+  { key: "Escape", description: t('shortcuts.closeDialogs') },
+]);
 
 const navigationShortcuts = computed(() =>
-  shortcuts.filter((s) => s.key.startsWith("g "))
+  shortcuts.value.filter((s) => s.key.startsWith("g "))
 );
 
 const generalShortcuts = computed(() =>
-  shortcuts.filter((s) => !s.key.startsWith("g "))
+  shortcuts.value.filter((s) => !s.key.startsWith("g "))
 );
 </script>
 

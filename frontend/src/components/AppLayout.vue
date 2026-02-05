@@ -8,6 +8,7 @@
         </router-link>
         <n-menu mode="horizontal" :options="menuOptions" :value="activeKey" @update:value="handleMenuClick" />
         <div class="header-spacer" />
+        <LanguageSwitcher />
         <n-tooltip trigger="hover">
           <template #trigger>
             <div
@@ -21,10 +22,10 @@
               <PhPlugs v-else :size="18" weight="regular" />
             </div>
           </template>
-          <span v-if="connectionStatus === 'connected'">Connected</span>
-          <span v-else-if="connectionStatus === 'connecting'">Connecting{{ reconnectAttempts > 0 ? ` (attempt ${reconnectAttempts})` : '' }}...</span>
-          <span v-else-if="connectionStatus === 'error'">{{ lastError || 'Connection error' }}</span>
-          <span v-else>Disconnected</span>
+          <span v-if="connectionStatus === 'connected'">{{ $t('connection.connected') }}</span>
+          <span v-else-if="connectionStatus === 'connecting'">{{ reconnectAttempts > 0 ? $t('connection.connectingAttempt', { count: reconnectAttempts }) : $t('connection.connecting') + '...' }}</span>
+          <span v-else-if="connectionStatus === 'error'">{{ lastError || $t('connection.error') }}</span>
+          <span v-else>{{ $t('connection.disconnected') }}</span>
         </n-tooltip>
       </div>
     </n-layout-header>
@@ -38,6 +39,7 @@
 <script setup lang="ts">
 import { computed, h, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import { NLayout, NLayoutHeader, NLayoutContent, NMenu, NTooltip, type MenuOption } from "naive-ui";
 import {
   PhTerminal,
@@ -55,9 +57,11 @@ import {
 import { useWebSocket } from "@/composables/useWebSocket";
 import { useProcessNotifications } from "@/composables/useProcessNotifications";
 import KeyboardShortcutsHelp from "@/components/KeyboardShortcutsHelp.vue";
+import LanguageSwitcher from "@/components/LanguageSwitcher.vue";
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n();
 const { connectionStatus, lastError, reconnectAttempts, connect, subscribeStatus } = useWebSocket();
 
 // Initialize process notifications (watches for status changes)
@@ -80,43 +84,43 @@ const activeKey = computed(() => {
   return "dashboard";
 });
 
-const menuOptions: MenuOption[] = [
+const menuOptions = computed<MenuOption[]>(() => [
   {
-    label: "Dashboard",
+    label: t("nav.dashboard"),
     key: "dashboard",
     icon: () => h(PhHouse, { weight: "regular" }),
   },
   {
-    label: "Processes",
+    label: t("nav.processes"),
     key: "processes",
     icon: () => h(PhListBullets, { weight: "regular" }),
   },
   {
-    label: "Groups",
+    label: t("nav.groups"),
     key: "groups",
     icon: () => h(PhStack, { weight: "regular" }),
   },
   {
-    label: "Recipes",
+    label: t("nav.recipes"),
     key: "recipes",
     icon: () => h(PhListChecks, { weight: "regular" }),
   },
   {
-    label: "Snippets",
+    label: t("nav.snippets"),
     key: "snippets",
     icon: () => h(PhCodeBlock, { weight: "regular" }),
   },
   {
-    label: "Config",
+    label: t("nav.config"),
     key: "config",
     icon: () => h(PhGear, { weight: "regular" }),
   },
   {
-    label: "About",
+    label: t("nav.about"),
     key: "about",
     icon: () => h(PhInfo, { weight: "regular" }),
   },
-];
+]);
 
 function handleMenuClick(key: string) {
   const routes: Record<string, string> = {

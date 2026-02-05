@@ -1,0 +1,300 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "processes": "Processes",
+    "groups": "Groups",
+    "recipes": "Recipes",
+    "snippets": "Snippets",
+    "config": "Config",
+    "about": "About"
+  },
+  "common": {
+    "refresh": "Refresh",
+    "close": "Close",
+    "cancel": "Cancel",
+    "save": "Save",
+    "create": "Create",
+    "delete": "Delete",
+    "remove": "Remove",
+    "copy": "Copy",
+    "run": "Run",
+    "start": "Start",
+    "stop": "Stop",
+    "restart": "Restart",
+    "preview": "Preview",
+    "retry": "Retry",
+    "loading": "Loading...",
+    "running": "Running",
+    "stopped": "Stopped",
+    "failed": "Failed",
+    "success": "Success",
+    "error": "Error",
+    "viewAll": "View all",
+    "more": "+{count} more",
+    "local": "Local",
+    "docker": "Docker",
+    "exists": "exists",
+    "missing": "missing",
+    "active": "Active",
+    "notFound": "Not Found",
+    "tracking": "tracking",
+    "noChangelog": "no changelog"
+  },
+  "connection": {
+    "connected": "Connected",
+    "connecting": "Connecting",
+    "connectingAttempt": "Connecting (attempt {count})...",
+    "disconnected": "Disconnected",
+    "error": "Connection error"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "stats": {
+      "running": "Running",
+      "processes": "Processes",
+      "groups": "Groups",
+      "recipes": "Recipes"
+    },
+    "processStatus": "Process Status",
+    "quickActions": "Quick Actions",
+    "recentActivity": "Recent Activity",
+    "viewChangelog": "View changelog",
+    "noProcesses": "No processes defined",
+    "noGroupsOrRecipes": "No groups or recipes defined",
+    "defineInConfig": "Define them in {config}",
+    "noRecentActivity": "No recent activity"
+  },
+  "processes": {
+    "title": "Processes",
+    "defineProcess": "Define Process",
+    "processRegistry": "Process Registry",
+    "liveInventory": "Live runtime inventory",
+    "runningCount": "{count} running",
+    "totalCount": "{count} total",
+    "noProcesses": "No processes defined",
+    "defineHint": "Define processes in {config} or via CLI.",
+    "columns": {
+      "name": "Name",
+      "status": "Status",
+      "pid": "PID",
+      "context": "Context",
+      "command": "Command",
+      "actions": "Actions"
+    },
+    "actions": {
+      "viewDetails": "View details",
+      "startProcess": "Start process",
+      "stopProcess": "Stop process",
+      "restartProcess": "Restart process",
+      "removeProcess": "Remove process"
+    },
+    "modal": {
+      "commandTitle": "Command",
+      "defineTitle": "Define Process"
+    },
+    "form": {
+      "name": "Name",
+      "namePlaceholder": "my-api",
+      "nameRequired": "Name is required",
+      "command": "Command",
+      "commandPlaceholder": "uvicorn main:app --port 8000",
+      "commandRequired": "Command is required",
+      "context": "Context",
+      "container": "Container",
+      "containerPlaceholder": "container-name",
+      "workingDirectory": "Working Directory",
+      "workingDirectoryPlaceholder": "/path/to/project (optional)",
+      "tags": "Tags",
+      "tagsPlaceholder": "api,backend (optional)"
+    },
+    "messages": {
+      "started": "Started {name}",
+      "stopped": "Stopped {name}",
+      "restarted": "Restarted {name}",
+      "removed": "Removed {name}",
+      "created": "Created {name}",
+      "commandCopied": "Command copied",
+      "copyFailed": "Failed to copy command",
+      "removeConfirm": "Remove process \"{name}\"?"
+    }
+  },
+  "groups": {
+    "title": "Groups",
+    "noGroups": "No groups defined",
+    "defineHint": "Define groups in your {config} file",
+    "startAll": "Start All",
+    "stopAll": "Stop All",
+    "startOrder": "Start Order",
+    "stopOrder": "Stop Order:",
+    "processCount": "{count} processes",
+    "missingInConfig": "missing in config",
+    "missingTooltip": "This process exists only in state.db. Add it to config.yaml to include it in groups.",
+    "dependsOn": "Depends on: {deps}",
+    "operationCompleted": "Operation completed",
+    "operationHadErrors": "Operation had errors",
+    "messages": {
+      "starting": "Starting group: {name}",
+      "started": "Started group: {name}",
+      "startFailed": "Failed to start group: {error}",
+      "stopping": "Stopping group: {name}",
+      "stopped": "Stopped group: {name}",
+      "stopFailed": "Failed to stop group: {error}"
+    },
+    "linuxState": {
+      "unkillable": "D (unkillable)",
+      "zombie": "Z (zombie)"
+    }
+  },
+  "recipes": {
+    "title": "Recipes",
+    "noRecipes": "No recipes defined",
+    "defineHint": "Define recipes in your {config} file",
+    "stepsCount": "{count} steps",
+    "onError": "on_error: {mode}",
+    "ranAgo": "ran {time}",
+    "execution": {
+      "running": "Running recipe...",
+      "completed": "Recipe completed successfully",
+      "stoppedDueToError": "Recipe stopped due to error",
+      "previewMode": "Preview Mode",
+      "stepsProgress": "{completed} / {total} steps"
+    },
+    "messages": {
+      "failed": "Recipe failed: {error}",
+      "loadFailed": "Failed to load recipe steps"
+    },
+    "time": {
+      "justNow": "just now",
+      "minutesAgo": "{count}m ago",
+      "hoursAgo": "{count}h ago",
+      "daysAgo": "{count}d ago"
+    }
+  },
+  "snippets": {
+    "title": "Snippets",
+    "saveSnippet": "Save Snippet",
+    "noSnippets": "No snippets yet",
+    "createFirst": "Create your first snippet",
+    "deleteConfirm": "Delete snippet \"{name}\"?",
+    "modal": {
+      "saveTitle": "Save Snippet",
+      "resultTitle": "Result: {name}"
+    },
+    "form": {
+      "name": "Name",
+      "namePlaceholder": "rebuild-api",
+      "nameRequired": "Name is required",
+      "command": "Command",
+      "commandPlaceholder": "docker compose build api",
+      "commandRequired": "Command is required",
+      "description": "Description",
+      "descriptionPlaceholder": "What this snippet does (optional)",
+      "tags": "Tags",
+      "tagsPlaceholder": "docker,build (optional)"
+    },
+    "result": {
+      "completedSuccessfully": "Completed successfully",
+      "executionFailed": "Execution failed",
+      "exitCode": "Exit code: {code}",
+      "output": "Output",
+      "stderr": "Stderr",
+      "noOutput": "(no output)"
+    },
+    "messages": {
+      "saved": "Saved snippet: {name}",
+      "removed": "Removed snippet: {name}",
+      "running": "Running snippet: {name}"
+    }
+  },
+  "config": {
+    "title": "Config",
+    "reloadConfig": "Reload Config",
+    "configuration": "Configuration",
+    "definedInConfig": "Defined in Config",
+    "variables": "Variables",
+    "variablesCount": "{count} vars",
+    "noVariables": "No variables defined",
+    "addVarsHint": "Add a {vars} block in {config}",
+    "varsUsageHint": "Use {syntax} in commands, container names, and recipe exec steps.",
+    "changelog": "Changelog",
+    "noChangelog": "No changelog yet",
+    "changelogHint": "Actions will be logged to {file}",
+    "changelogEmpty": "Changelog is empty",
+    "processDefinitions": "Process Definitions",
+    "labels": {
+      "configDirectory": "Config Directory",
+      "configFile": "Config File",
+      "version": "Version"
+    },
+    "columns": {
+      "name": "Name",
+      "value": "Value",
+      "context": "Context",
+      "command": "Command",
+      "container": "Container"
+    },
+    "messages": {
+      "reloaded": "Config reloaded",
+      "reloadFailed": "Failed to reload"
+    }
+  },
+  "about": {
+    "title": "About",
+    "tagline": "LLM-first process manager",
+    "description": "Orchestrate local and Docker processes with a unified CLI and a real-time dashboard. Build repeatable recipes, keep logs close, and ship with confidence.",
+    "openProcesses": "Open Processes",
+    "viewConfig": "View Config",
+    "tags": {
+      "local": "local",
+      "docker": "docker",
+      "recipes": "recipes",
+      "vars": "vars"
+    },
+    "whatItDoes": {
+      "title": "What It Does",
+      "description": "Procler keeps process control deterministic: define once, start and stop safely, and get status updates and logs in one place. The UI and CLI share the same core logic."
+    },
+    "concepts": {
+      "title": "Concepts",
+      "items": {
+        "processes": "Processes live in a single registry.",
+        "contexts": "Contexts decide where commands run (local or docker).",
+        "recipes": "Recipes orchestrate multi-step workflows.",
+        "vars": "Vars let you template commands with ${VAR}."
+      }
+    },
+    "quickStart": {
+      "title": "Quick Start"
+    },
+    "techStack": {
+      "title": "Tech Stack",
+      "backend": "Backend",
+      "database": "Database",
+      "frontend": "Frontend",
+      "cli": "CLI",
+      "realtime": "Real-time"
+    },
+    "links": {
+      "title": "Links",
+      "github": "GitHub Repository",
+      "pypi": "PyPI Package",
+      "documentation": "Documentation"
+    },
+    "version": "Version",
+    "license": "License"
+  },
+  "shortcuts": {
+    "title": "Keyboard Shortcuts",
+    "navigation": "Navigation",
+    "general": "General",
+    "goToDashboard": "Go to Dashboard",
+    "goToProcesses": "Go to Processes",
+    "goToGroups": "Go to Groups",
+    "goToRecipes": "Go to Recipes",
+    "goToSnippets": "Go to Snippets",
+    "goToConfig": "Go to Config",
+    "goToAbout": "Go to About",
+    "showShortcuts": "Show keyboard shortcuts",
+    "closeDialogs": "Close dialogs"
+  }
+}
