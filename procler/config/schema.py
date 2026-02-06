@@ -136,6 +136,9 @@ class ProcessDef(BaseModel):
     # Memory threshold for auto-restart (e.g., "512M", "1G", "256K")
     max_memory: str | None = None
 
+    # Cron schedule (e.g., "0 */6 * * *" for every 6 hours)
+    schedule: str | None = None
+
     # Daemon mode configuration
     daemon_mode: bool = False
     daemon_match_pattern: str | None = None
