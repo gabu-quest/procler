@@ -618,14 +618,20 @@ def status(name: str | None) -> None:
 
 @cli.command("list")
 @click.option("--resolve", is_flag=True, help="Show commands with variables substituted")
-def list_processes(resolve: bool) -> None:
+@click.option("--namespace", "-n", default=None, help="Filter by namespace")
+def list_processes(resolve: bool, namespace: str | None) -> None:
     """List all process definitions."""
+    from sqler.query import SQLerField as F
+
     from .core.variable_substitution import substitute_vars_from_config
     from .db import init_database
     from .models import Process
 
     init_database()
-    processes = Process.query().all()
+    query = Process.query()
+    if namespace:
+        query = query.filter(F("namespace") == namespace)
+    processes = query.all()
 
     process_data = []
     for process in processes:
@@ -647,6 +653,7 @@ def list_processes(resolve: bool) -> None:
                 "container_name": process.container_name,
                 "cwd": process.cwd,
                 "tags": process.tags or [],
+                "namespace": getattr(process, "namespace", "default"),
                 "daemon_mode": getattr(process, "daemon_mode", False) or None,
                 "daemon_match_pattern": getattr(process, "daemon_match_pattern", None),
                 "daemon_container": daemon_container,

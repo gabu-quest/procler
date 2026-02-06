@@ -1098,6 +1098,7 @@ class ProcessManager:
             "container": process.container_name,
             "cwd": process.cwd,
             "tags": process.tags,
+            "namespace": getattr(process, "namespace", "default"),
             "created_at": process.created_at,
             "updated_at": process.updated_at,
             "status": process.status,

@@ -139,6 +139,12 @@ class ProcessDef(BaseModel):
     # Cron schedule (e.g., "0 */6 * * *" for every 6 hours)
     schedule: str | None = None
 
+    # Number of instances to run (e.g., 3 creates worker-1, worker-2, worker-3)
+    replicas: int = 1
+
+    # Namespace for multi-project isolation (default: "default")
+    namespace: str = "default"
+
     # Daemon mode configuration
     daemon_mode: bool = False
     daemon_match_pattern: str | None = None
@@ -371,3 +377,39 @@ class ProclerConfig(BaseModel):
                 errors.append(f"Snippet '{name}' has docker context but no container specified")
 
         return errors
+
+    def expand_replicas(self) -> dict[str, ProcessDef]:
+        """Expand processes with replicas > 1 into individual instances.
+
+        Returns a new dict with replica instances named like 'worker-1', 'worker-2', etc.
+        Processes with replicas=1 are included as-is.
+
+        Each replica gets its own copy of the ProcessDef with:
+        - replicas set back to 1
+        - A tag 'replica:{original_name}' added for grouping
+        """
+        expanded = {}
+        for name, proc_def in self.processes.items():
+            if proc_def.replicas <= 1:
+                expanded[name] = proc_def
+            else:
+                for i in range(1, proc_def.replicas + 1):
+                    replica_name = f"{name}-{i}"
+                    # Create a copy with replicas=1 and replica tag
+                    replica_data = proc_def.model_dump()
+                    replica_data["replicas"] = 1
+                    replica_tags = list(proc_def.tags) + [f"replica:{name}"]
+                    replica_data["tags"] = replica_tags
+                    expanded[replica_name] = ProcessDef(**replica_data)
+        return expanded
+
+    def get_replica_names(self, base_name: str) -> list[str]:
+        """Get all replica instance names for a process.
+
+        If the process has replicas > 1, returns ['name-1', 'name-2', ...].
+        Otherwise returns ['name'].
+        """
+        proc_def = self.processes.get(base_name)
+        if not proc_def or proc_def.replicas <= 1:
+            return [base_name]
+        return [f"{base_name}-{i}" for i in range(1, proc_def.replicas + 1)]
