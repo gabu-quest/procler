@@ -68,6 +68,10 @@ dev = [
     "pre-commit>=4.0.0",
 ]
 
+tui = [
+    "textual>=1.0.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

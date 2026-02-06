@@ -1637,5 +1637,24 @@ def import_procfile(path: str, dry_run: bool, merge: bool) -> None:
         sys.exit(1)
 
 
+# TUI command
+@cli.command()
+def tui() -> None:
+    """Launch the Terminal User Interface (requires 'tui' extra)."""
+    try:
+        from .tui.app import run_tui
+    except ImportError:
+        output_json(
+            error_response(
+                "TUI dependencies not installed",
+                error_code="missing_dependency",
+                suggestion="Install with: pip install procler[tui] or uv sync --extra tui",
+            )
+        )
+        sys.exit(1)
+
+    run_tui()
+
+
 if __name__ == "__main__":
     cli()
