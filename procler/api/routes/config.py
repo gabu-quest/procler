@@ -173,6 +173,40 @@ async def get_changelog(tail: int = 50, format: str = "parsed") -> ConfigRespons
         )
 
 
+@router.get("/export/{format}")
+async def export_config(format: str) -> ConfigResponse:
+    """Export process definitions to systemd or docker-compose format.
+
+    Args:
+        format: "systemd" or "compose"
+    """
+    from ...core.export import export_compose, export_systemd_unit
+
+    config = get_config()
+
+    if format == "systemd":
+        units = {}
+        for name, proc_def in config.processes.items():
+            if proc_def.context.value == "local":
+                units[name] = export_systemd_unit(name, proc_def)
+        return ConfigResponse(
+            success=True,
+            data={"format": "systemd", "units": units, "count": len(units)},
+        )
+    elif format == "compose":
+        compose = export_compose(config.processes)
+        return ConfigResponse(
+            success=True,
+            data={"format": "compose", "compose": compose},
+        )
+    else:
+        return ConfigResponse(
+            success=False,
+            error=f"Unknown export format: {format}",
+            error_code="invalid_format",
+        )
+
+
 @router.get("/explain")
 async def explain_config() -> ConfigResponse:
     """

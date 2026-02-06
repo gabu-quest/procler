@@ -1225,6 +1225,74 @@ def recipe_run(name: str, dry_run: bool, continue_on_error: bool) -> None:
         sys.exit(1)
 
 
+# Export subcommands
+@cli.group()
+def export() -> None:
+    """Export process definitions to other formats."""
+    pass
+
+
+@export.command("systemd")
+@click.argument("name", required=False)
+@click.option("--all", "export_all", is_flag=True, help="Export all processes")
+def export_systemd(name: str | None, export_all: bool) -> None:
+    """Export process definition(s) as systemd .service unit files."""
+    from .config import get_config
+    from .core.export import export_systemd_unit
+
+    if not name and not export_all:
+        output_json(
+            error_response(
+                "Specify a process name or --all",
+                error_code="missing_argument",
+                suggestion="procler export systemd <name> or procler export systemd --all",
+            )
+        )
+        sys.exit(1)
+
+    try:
+        cfg = get_config()
+    except Exception as e:
+        output_json(error_response(str(e), error_code="config_error"))
+        sys.exit(1)
+
+    if export_all:
+        units = {}
+        for proc_name, proc_def in cfg.processes.items():
+            if proc_def.context.value == "local":
+                units[proc_name] = export_systemd_unit(proc_name, proc_def)
+        output_json(success_response({"units": units, "count": len(units)}))
+    else:
+        if name not in cfg.processes:
+            output_json(
+                error_response(
+                    f"Process '{name}' not found in config",
+                    error_code="process_not_found",
+                )
+            )
+            sys.exit(1)
+
+        proc_def = cfg.processes[name]
+        unit = export_systemd_unit(name, proc_def)
+        output_json(success_response({"name": name, "unit": unit}))
+
+
+@export.command("compose")
+def export_compose_cmd() -> None:
+    """Export all process definitions as docker-compose.yml."""
+    from .config import get_config
+    from .core.export import export_compose
+
+    try:
+        cfg = get_config()
+    except Exception as e:
+        output_json(error_response(str(e), error_code="config_error"))
+        sys.exit(1)
+
+    compose = export_compose(cfg.processes)
+    output_json(success_response({"compose": compose}))
+
+
 # Config subcommands
 @cli.group()
 def config() -> None:
