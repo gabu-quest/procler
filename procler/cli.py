@@ -1549,5 +1549,93 @@ def config_explain() -> None:
     )
 
 
+# Import subcommands
+@cli.group("import")
+def import_cmd() -> None:
+    """Import process definitions from external formats."""
+    pass
+
+
+@import_cmd.command("procfile")
+@click.argument("path", type=click.Path(exists=True))
+@click.option("--dry-run", is_flag=True, help="Preview without writing config")
+@click.option("--merge", is_flag=True, help="Merge into existing config instead of overwriting")
+def import_procfile(path: str, dry_run: bool, merge: bool) -> None:
+    """Import processes from a Procfile."""
+    from pathlib import Path as P
+
+    from .core.import_procfile import generate_config_yaml, parse_procfile_from_path
+
+    try:
+        processes = parse_procfile_from_path(P(path))
+    except (FileNotFoundError, ValueError) as e:
+        output_json(error_response(str(e), error_code="parse_error"))
+        sys.exit(1)
+
+    if not processes:
+        output_json(
+            error_response(
+                "No processes found in Procfile",
+                error_code="empty_procfile",
+                suggestion="Procfile format: 'name: command' (one per line)",
+            )
+        )
+        sys.exit(1)
+
+    # Load existing config if merging
+    existing_config = None
+    if merge:
+        try:
+            from .config import get_config_file_path
+
+            config_path = get_config_file_path()
+            if config_path.exists():
+                import yaml
+
+                with open(config_path) as f:
+                    existing_config = yaml.safe_load(f) or {}
+        except Exception:
+            pass  # No existing config to merge with
+
+    yaml_output = generate_config_yaml(processes, existing_config)
+
+    if dry_run:
+        process_list = [{"name": name, "command": proc.command} for name, proc in processes.items()]
+        output_json(
+            success_response(
+                {
+                    "dry_run": True,
+                    "processes": process_list,
+                    "count": len(processes),
+                    "yaml_preview": yaml_output,
+                }
+            )
+        )
+        return
+
+    # Write config
+    try:
+        from .config import find_config_dir
+
+        config_dir = find_config_dir()
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_path = config_dir / "config.yaml"
+        config_path.write_text(yaml_output)
+
+        process_list = [{"name": name, "command": proc.command} for name, proc in processes.items()]
+        output_json(
+            success_response(
+                {
+                    "imported": len(processes),
+                    "processes": process_list,
+                    "config_path": str(config_path),
+                }
+            )
+        )
+    except Exception as e:
+        output_json(error_response(str(e), error_code="write_error"))
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     cli()
