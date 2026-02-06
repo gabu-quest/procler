@@ -18,7 +18,7 @@ from .context_base import ExecResult, ExecutionContext, ProcessHandle
 from .context_docker import get_docker_context, is_docker_available
 from .context_local import get_local_context
 from .daemon_detector import get_daemon_detector
-from .events import EVENT_LOG_ENTRY, EVENT_STATUS_CHANGE, get_event_bus
+from .events import EVENT_LOG_ENTRY, EVENT_LOG_READY, EVENT_STATUS_CHANGE, get_event_bus
 from .variable_substitution import substitute_vars_from_config
 
 logger = logging.getLogger(__name__)
@@ -228,6 +228,8 @@ class ProcessManager:
         self._contexts: dict[str, ExecutionContext] = {}
         self._handles: dict[int, ProcessHandle] = {}  # process_id -> handle
         self._lock = asyncio.Lock()  # Protects _handles from concurrent access
+        self._ready_patterns: dict[int, re.Pattern] = {}  # process_id -> compiled regex
+        self._ready_processes: set[int] = set()  # process_ids that matched ready_log_line
         self._init_contexts()
 
     def _init_contexts(self) -> None:
@@ -267,6 +269,20 @@ class ProcessManager:
         async with self._lock:
             self._handles.pop(process_id, None)
 
+    def register_ready_pattern(self, process_id: int, pattern: str) -> None:
+        """Register a ready_log_line regex pattern for a process."""
+        self._ready_patterns[process_id] = re.compile(pattern)
+        self._ready_processes.discard(process_id)
+
+    def is_process_ready(self, process_id: int) -> bool:
+        """Check if a process has matched its ready_log_line pattern."""
+        return process_id in self._ready_processes
+
+    def clear_ready_state(self, process_id: int) -> None:
+        """Clear ready state for a process (e.g., on stop/restart)."""
+        self._ready_patterns.pop(process_id, None)
+        self._ready_processes.discard(process_id)
+
     def _log_callback(self, process_id: int, stream: str):
         """Create a callback for logging output."""
 
@@ -282,6 +298,24 @@ class ProcessManager:
                 entry.save()
             except Exception as e:
                 logger.error(f"Failed to save log entry for process {process_id}: {e}")
+
+            # Check for ready_log_line match
+            if process_id not in self._ready_processes and process_id in self._ready_patterns:
+                pattern = self._ready_patterns[process_id]
+                if pattern.search(line):
+                    self._ready_processes.add(process_id)
+                    try:
+                        get_event_bus().emit_sync(
+                            EVENT_LOG_READY,
+                            {
+                                "process_id": process_id,
+                                "line": line,
+                                "pattern": pattern.pattern,
+                                "timestamp": timestamp,
+                            },
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to emit log_ready event for process {process_id}: {e}")
 
             # Emit event for WebSocket broadcast
             try:
@@ -653,8 +687,9 @@ class ProcessManager:
             process.exit_code = exit_code
             process.save()
 
-            # Remove handle (thread-safe)
+            # Remove handle and clear ready state (thread-safe)
             await self._remove_handle(process._id)
+            self.clear_ready_state(process._id)
 
             # Emit status change event
             get_event_bus().emit_sync(

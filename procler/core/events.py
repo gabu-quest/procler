@@ -55,6 +55,8 @@ class EventBus:
 EVENT_STATUS_CHANGE = "status_change"
 EVENT_LOG_ENTRY = "log_entry"
 EVENT_RECIPE_STEP = "recipe_step"  # Recipe execution progress
+EVENT_LOG_READY = "log_ready"  # Process matched ready_log_line pattern
+EVENT_MEMORY_EXCEEDED = "memory_exceeded"  # Process exceeded max_memory threshold
 
 # Global event bus
 _event_bus: EventBus | None = None

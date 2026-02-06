@@ -27,9 +27,67 @@ Procler gives developers (and their AI coding assistants) a single pane of glass
 - **Real-time Updates** - WebSocket support for live status and log streaming
 - **Config Variables** - Define `vars` in config.yaml and reference with `${VAR}`
 
+## Demo
+
+<!-- TODO: Replace with actual recordings -->
+<!-- Record with: asciinema rec demo.cast -->
+<!-- Convert to GIF with: agg demo.cast demo.gif -->
+
+<details>
+<summary>Basic Workflow (define, start, status, logs, stop)</summary>
+
+```
+Coming soon - terminal recording
+```
+</details>
+
+<details>
+<summary>Group Start with Dependency Ordering</summary>
+
+```
+Coming soon - terminal recording
+```
+</details>
+
+<details>
+<summary>Recipe Dry-Run and Execution</summary>
+
+```
+Coming soon - terminal recording
+```
+</details>
+
+## How Does Procler Compare?
+
+| Feature | Procler | Process Compose | PM2 | Supervisord | Foreman |
+|---------|:-------:|:---------------:|:---:|:-----------:|:-------:|
+| LLM-first JSON CLI | ✅ | - | - | - | - |
+| Web Dashboard (free) | ✅ | - | paid | - | - |
+| Docker container execution | ✅ | - | bolt-on | - | - |
+| Health checks | ✅ | ✅ | - | - | - |
+| Dependency-ordered startup | ✅ | ✅ | - | - | - |
+| `log_ready` condition | ✅ | ✅ | - | - | - |
+| Multi-step recipes | ✅ | - | - | - | - |
+| Snippets (command library) | ✅ | - | - | - | - |
+| Audit trail | ✅ | - | - | - | - |
+| WebSocket real-time | ✅ | - | - | - | - |
+| Config explain (LLM) | ✅ | - | - | - | - |
+| Memory threshold restart | ✅ | - | ✅ | - | - |
+| HTTP/TCP readiness probes | ✅ | ✅ | - | - | - |
+| Export to systemd | ✅ | - | - | - | ✅ |
+| Cron/scheduled processes | ✅ | ✅ | - | - | - |
+| Process replicas | ✅ | ✅ | ✅ | - | - |
+| Procfile import | ✅ | - | - | - | ✅ |
+| TUI mode | ✅ | ✅ | - | - | - |
+| Language-agnostic | ✅ | ✅ | Node.js | Python | Ruby |
+
 ## Installation
 
 ```bash
+# Recommended: install as a global tool
+uv tool install procler
+
+# Or via pip
 pip install procler
 ```
 
@@ -38,7 +96,7 @@ Or install from source:
 ```bash
 git clone https://github.com/gabu-quest/procler.git
 cd procler
-uv pip install -e .[dev]
+uv sync --all-extras
 ```
 
 > **Note:** Frontend is pre-built and included. No separate build step needed!

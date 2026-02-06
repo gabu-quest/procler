@@ -60,6 +60,7 @@ class DependencyCondition(str, Enum):
 
     STARTED = "started"  # Just needs to be running
     HEALTHY = "healthy"  # Must pass health check
+    LOG_READY = "log_ready"  # Must match ready_log_line regex in stdout
 
 
 class DependencyDef(BaseModel):
@@ -80,6 +81,9 @@ class ProcessDef(BaseModel):
     description: str | None = None
     healthcheck: HealthCheckDef | None = None
     depends_on: list[str | DependencyDef] = Field(default_factory=list)
+
+    # Ready detection via log line (regex pattern matched against stdout/stderr)
+    ready_log_line: str | None = None
 
     # Daemon mode configuration
     daemon_mode: bool = False

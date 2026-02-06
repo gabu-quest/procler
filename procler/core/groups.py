@@ -128,6 +128,16 @@ class GroupManager:
             # Ensure process exists in runtime DB
             await self._ensure_process_in_db(proc_name, proc_def)
 
+            # Register ready_log_line pattern before starting (so log callback can match)
+            if proc_def.ready_log_line:
+                from sqler.query import SQLerField as F
+
+                from ..models import Process
+
+                proc_results = Process.query().filter(F("name") == proc_name).all()
+                if proc_results:
+                    self._process_manager.register_ready_pattern(proc_results[0]._id, proc_def.ready_log_line)
+
             # Start the process
             result = await self._process_manager.start(proc_name)
 
@@ -225,6 +235,29 @@ class GroupManager:
                             "dependency": dep_name,
                             "error": f"Dependency not healthy after {timeout}s",
                             "condition": "healthy",
+                        }
+                    )
+                    continue
+
+            # If condition is 'log_ready', wait for ready_log_line match
+            elif dep.condition == DependencyCondition.LOG_READY:
+                if not dep_def.ready_log_line:
+                    failures.append(
+                        {
+                            "dependency": dep_name,
+                            "error": "Dependency requires log_ready condition but has no ready_log_line",
+                        }
+                    )
+                    continue
+
+                # Wait for log_ready with polling
+                is_ready = await self._wait_for_log_ready(dep_name, timeout)
+                if not is_ready:
+                    failures.append(
+                        {
+                            "dependency": dep_name,
+                            "error": f"Dependency log_ready not matched after {timeout}s",
+                            "condition": "log_ready",
                         }
                     )
                     continue
@@ -369,6 +402,39 @@ class GroupManager:
                 "statuses": statuses,
             },
         }
+
+    async def _wait_for_log_ready(self, process_name: str, timeout: float) -> bool:
+        """Wait for a process to emit its ready_log_line pattern."""
+        from datetime import datetime
+
+        from sqler.query import SQLerField as F
+
+        from ..models import Process
+
+        # Find the process to get its ID
+        results = Process.query().filter(F("name") == process_name).all()
+        if not results:
+            return False
+
+        process_id = results[0]._id
+        start = datetime.now()
+
+        while True:
+            elapsed = (datetime.now() - start).total_seconds()
+            if elapsed >= timeout:
+                return False
+
+            if self._process_manager.is_process_ready(process_id):
+                return True
+
+            # Check if process is still running
+            status_result = await self._process_manager.status(process_name)
+            if status_result.get("success"):
+                proc_status = status_result.get("data", {}).get("process", {}).get("status")
+                if proc_status not in ("running", "starting"):
+                    return False
+
+            await asyncio.sleep(0.2)
 
     async def _ensure_process_in_db(self, name: str, proc_def) -> None:
         """Ensure a process from config exists in the runtime database."""
