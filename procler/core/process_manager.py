@@ -12,13 +12,14 @@ from typing import Any
 from sqler.query import SQLerField as F
 
 from ..config import ChangelogAction, append_changelog
+from ..config.schema import parse_memory_string
 from ..db import init_database
 from ..models import LogEntry, Process, ProcessStatus
 from .context_base import ExecResult, ExecutionContext, ProcessHandle
 from .context_docker import get_docker_context, is_docker_available
 from .context_local import get_local_context
 from .daemon_detector import get_daemon_detector
-from .events import EVENT_LOG_ENTRY, EVENT_LOG_READY, EVENT_STATUS_CHANGE, get_event_bus
+from .events import EVENT_LOG_ENTRY, EVENT_LOG_READY, EVENT_MEMORY_EXCEEDED, EVENT_STATUS_CHANGE, get_event_bus
 from .variable_substitution import substitute_vars_from_config
 
 logger = logging.getLogger(__name__)
@@ -221,6 +222,29 @@ def wrap_command_with_log_redirect(command: str, log_path: str) -> str:
     return f"{command} > {safe_log_path} 2>&1"
 
 
+def get_process_rss_bytes(pid: int) -> int | None:
+    """Read the RSS (Resident Set Size) of a process from /proc/[pid]/status.
+
+    Returns RSS in bytes, or None if the process doesn't exist or can't be read.
+    """
+    try:
+        status_path = Path(f"/proc/{pid}/status")
+        if not status_path.exists():
+            return None
+
+        content = status_path.read_text()
+        for line in content.splitlines():
+            if line.startswith("VmRSS:"):
+                # Format: "VmRSS:    12345 kB"
+                parts = line.split()
+                if len(parts) >= 2:
+                    kb = int(parts[1])
+                    return kb * 1024  # Convert kB to bytes
+        return None
+    except (OSError, ValueError, IndexError):
+        return None
+
+
 class ProcessManager:
     """Central coordinator for process operations."""
 
@@ -230,6 +254,8 @@ class ProcessManager:
         self._lock = asyncio.Lock()  # Protects _handles from concurrent access
         self._ready_patterns: dict[int, re.Pattern] = {}  # process_id -> compiled regex
         self._ready_processes: set[int] = set()  # process_ids that matched ready_log_line
+        self._memory_limits: dict[int, int] = {}  # process_id -> max bytes
+        self._memory_monitor_task: asyncio.Task | None = None
         self._init_contexts()
 
     def _init_contexts(self) -> None:
@@ -282,6 +308,75 @@ class ProcessManager:
         """Clear ready state for a process (e.g., on stop/restart)."""
         self._ready_patterns.pop(process_id, None)
         self._ready_processes.discard(process_id)
+
+    def register_memory_limit(self, process_id: int, max_memory: str) -> None:
+        """Register a memory limit for a process.
+
+        Args:
+            process_id: The database ID of the process
+            max_memory: Memory limit string like "512M", "1G"
+        """
+        self._memory_limits[process_id] = parse_memory_string(max_memory)
+
+    def clear_memory_limit(self, process_id: int) -> None:
+        """Remove memory limit tracking for a process."""
+        self._memory_limits.pop(process_id, None)
+
+    def start_memory_monitor(self) -> None:
+        """Start the background memory monitor task."""
+        if self._memory_monitor_task is None or self._memory_monitor_task.done():
+            self._memory_monitor_task = asyncio.create_task(self._memory_monitor_loop())
+
+    def stop_memory_monitor(self) -> None:
+        """Stop the background memory monitor task."""
+        if self._memory_monitor_task and not self._memory_monitor_task.done():
+            self._memory_monitor_task.cancel()
+
+    async def _memory_monitor_loop(self) -> None:
+        """Background loop that checks process memory usage every 5 seconds."""
+        while True:
+            try:
+                await asyncio.sleep(5)
+                await self._check_memory_limits()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Memory monitor error: {e}")
+
+    async def _check_memory_limits(self) -> None:
+        """Check all registered processes against their memory limits."""
+        for process_id, limit_bytes in list(self._memory_limits.items()):
+            try:
+                process = Process.from_id(process_id)
+                if not process or process.status != ProcessStatus.RUNNING.value or not process.pid:
+                    continue
+
+                rss = get_process_rss_bytes(process.pid)
+                if rss is None:
+                    continue
+
+                if rss > limit_bytes:
+                    logger.warning(
+                        f"Process '{process.name}' (PID {process.pid}) RSS {rss} bytes "
+                        f"exceeds limit {limit_bytes} bytes. Restarting."
+                    )
+
+                    # Emit memory exceeded event
+                    get_event_bus().emit_sync(
+                        EVENT_MEMORY_EXCEEDED,
+                        {
+                            "process_id": process_id,
+                            "name": process.name,
+                            "pid": process.pid,
+                            "rss_bytes": rss,
+                            "limit_bytes": limit_bytes,
+                        },
+                    )
+
+                    # Restart the process
+                    await self.restart(process.name)
+            except Exception as e:
+                logger.error(f"Error checking memory for process {process_id}: {e}")
 
     def _log_callback(self, process_id: int, stream: str):
         """Create a callback for logging output."""
@@ -687,9 +782,10 @@ class ProcessManager:
             process.exit_code = exit_code
             process.save()
 
-            # Remove handle and clear ready state (thread-safe)
+            # Remove handle and clear ready/memory state (thread-safe)
             await self._remove_handle(process._id)
             self.clear_ready_state(process._id)
+            self.clear_memory_limit(process._id)
 
             # Emit status change event
             get_event_bus().emit_sync(
@@ -1016,6 +1112,17 @@ class ProcessManager:
             "log_file": getattr(process, "log_file", None),
             "adopted": getattr(process, "adopted", False) or None,
         }
+
+        # Add memory info if running and we have a PID
+        if process.pid and process.status == ProcessStatus.RUNNING.value:
+            rss = get_process_rss_bytes(process.pid)
+            if rss is not None:
+                result["memory_rss_bytes"] = rss
+                # Include limit if one is registered
+                limit = self._memory_limits.get(process._id)
+                if limit:
+                    result["memory_limit_bytes"] = limit
+                    result["memory_usage_percent"] = round(rss / limit * 100, 1)
 
         # Add Linux process state if running and we have a PID
         if process.pid and process.status == ProcessStatus.RUNNING.value:

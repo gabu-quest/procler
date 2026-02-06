@@ -7,6 +7,38 @@ from enum import Enum
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
+def parse_memory_string(value: str) -> int:
+    """Parse a memory string like '512M', '1G', '256K' to bytes.
+
+    Supports: B, K/KB, M/MB, G/GB (case-insensitive).
+    Returns bytes as an integer.
+    """
+    value = value.strip().upper()
+    multipliers = {
+        "B": 1,
+        "K": 1024,
+        "KB": 1024,
+        "M": 1024 * 1024,
+        "MB": 1024 * 1024,
+        "G": 1024 * 1024 * 1024,
+        "GB": 1024 * 1024 * 1024,
+    }
+
+    for suffix, multiplier in sorted(multipliers.items(), key=lambda x: -len(x[0])):
+        if value.endswith(suffix):
+            num_str = value[: -len(suffix)].strip()
+            try:
+                return int(float(num_str) * multiplier)
+            except ValueError:
+                raise ValueError(f"Invalid memory value: {value}")
+
+    # Try as raw bytes
+    try:
+        return int(value)
+    except ValueError:
+        raise ValueError(f"Invalid memory format: {value}. Use format like '512M', '1G', '256K'")
+
+
 class ContextType(str, Enum):
     """Execution context type."""
 
@@ -22,13 +54,29 @@ class OnErrorAction(str, Enum):
 
 
 class HealthCheckDef(BaseModel):
-    """Health check definition for a process."""
+    """Health check definition for a process.
 
-    test: str  # Command to run, e.g., "curl -f http://localhost:8000/health"
+    Exactly one of test, http_get, or tcp_socket must be specified.
+    """
+
+    test: str | None = None  # Command to run, e.g., "curl -f http://localhost:8000/health"
+    http_get: str | None = None  # HTTP GET URL, e.g., "http://localhost:8000/health"
+    tcp_socket: str | None = None  # TCP address, e.g., "localhost:5432"
     interval: str = "10s"  # Time between checks
     timeout: str = "5s"  # How long to wait for check to complete
     retries: int = 3  # Number of consecutive failures before unhealthy
     start_period: str = "0s"  # Grace period before checks start
+
+    @model_validator(mode="after")
+    def validate_probe_type(self):
+        """Ensure exactly one probe type is specified."""
+        probes = [self.test, self.http_get, self.tcp_socket]
+        specified = sum(1 for p in probes if p is not None)
+        if specified == 0:
+            raise ValueError("Health check must specify one of: test, http_get, or tcp_socket")
+        if specified > 1:
+            raise ValueError("Health check must specify only one of: test, http_get, or tcp_socket")
+        return self
 
     def get_interval_seconds(self) -> float:
         """Parse interval to seconds."""
@@ -84,6 +132,9 @@ class ProcessDef(BaseModel):
 
     # Ready detection via log line (regex pattern matched against stdout/stderr)
     ready_log_line: str | None = None
+
+    # Memory threshold for auto-restart (e.g., "512M", "1G", "256K")
+    max_memory: str | None = None
 
     # Daemon mode configuration
     daemon_mode: bool = False
