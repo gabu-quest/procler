@@ -57,8 +57,11 @@ procler/
 │   │   ├── snippets.py         # Snippet operations
 │   │   ├── groups.py           # Group operations (ordered start/stop + dependencies)
 │   │   ├── recipes.py          # Recipe executor (multi-step)
-│   │   ├── health.py           # Health check monitoring
-│   │   └── events.py           # EventBus for real-time updates
+│   │   ├── health.py           # Health check monitoring (cmd, HTTP, TCP probes)
+│   │   ├── events.py           # EventBus for real-time updates
+│   │   ├── scheduler.py        # Cron/scheduled process execution
+│   │   ├── export.py           # Export to systemd/Docker Compose
+│   │   └── import_procfile.py  # Procfile format importer
 │   └── api/                    # FastAPI application
 │       ├── app.py              # App factory
 │       ├── deps.py             # Dependency injection
@@ -78,7 +81,10 @@ procler/
 │   │   ├── components/         # AppLayout, Breadcrumbs, KeyboardShortcutsHelp
 │   │   └── ...
 │   └── package.json
-└── tests/                      # pytest tests (154 tests)
+├── procler/tui/                # Terminal UI (Textual)
+│   ├── __init__.py
+│   └── app.py                  # TUI app with process list, log viewer
+└── tests/                      # pytest tests (320+ tests)
 ```
 
 ---
@@ -131,8 +137,11 @@ processes:
     cwd: /path/to/project
     tags: [backend, api]
     description: "API server"
+    namespace: backend            # Namespace isolation (default: "default")
+    ready_log_line: "Uvicorn running on"  # Regex for log_ready condition
+    max_memory: 512M              # Auto-restart on memory threshold
     healthcheck:                  # Optional health monitoring
-      test: "curl -f http://localhost:8000/health"
+      http_get: "http://localhost:8000/health"  # HTTP probe (or test: / tcp_socket:)
       interval: 10s
       timeout: 5s
       retries: 3
@@ -140,10 +149,17 @@ processes:
 
   worker:
     command: celery worker
+    replicas: 3                   # Start 3 instances (worker-1, worker-2, worker-3)
     depends_on:                   # Start dependencies
       - redis                     # Simple: wait for 'started'
       - name: api
+        condition: log_ready      # Wait for ready_log_line match
+      - name: db
         condition: healthy        # Wait for health check to pass
+
+  cleanup:
+    command: python scripts/cleanup.py
+    schedule: "0 */6 * * *"       # Cron expression
 
 groups:
   backend:
@@ -194,7 +210,7 @@ procler start <NAME>          # Idempotent
 procler stop <NAME>           # Idempotent
 procler restart <NAME>
 procler status [NAME]
-procler list
+procler list [--namespace NS]
 procler remove <NAME>
 procler logs <NAME> --tail 100 --since 5m
 procler exec "command" [--context docker --container <CONTAINER>]
@@ -223,6 +239,25 @@ procler snippet list [--tag TAG]
 procler snippet save --name <NAME> --command <CMD>
 procler snippet run <NAME>
 procler snippet remove <NAME>
+```
+
+### Export
+```bash
+procler export systemd <NAME>     # Export as systemd .service unit
+procler export systemd --all      # Export all local processes
+procler export compose            # Export as docker-compose.yml
+```
+
+### Import
+```bash
+procler import procfile <PATH>            # Import from Procfile
+procler import procfile <PATH> --dry-run  # Preview without writing
+procler import procfile <PATH> --merge    # Merge into existing config
+```
+
+### TUI
+```bash
+procler tui                       # Launch Terminal UI (requires procler[tui])
 ```
 
 ### Server
@@ -272,6 +307,7 @@ GET    /api/config/processes       # List config-defined processes
 GET    /api/config/changelog?format=parsed&tail=50
 GET    /api/config/explain         # Plain-language explanation
 POST   /api/config/reload          # Reload from disk
+GET    /api/config/export/{format} # Export (systemd, compose)
 ```
 
 ### Snippets
@@ -321,11 +357,18 @@ Status output includes warnings for problematic states:
 ## Health Checks & Dependencies
 
 ### Health Check Config
+
+Three probe types (use exactly one):
+
 ```yaml
 healthcheck:
-  test: "curl -f http://localhost:8000/health"  # Command to run
+  test: "curl -f http://localhost:8000/health"  # Command probe
+  # OR
+  http_get: "http://localhost:8000/health"      # HTTP GET probe (built-in, no curl)
+  # OR
+  tcp_socket: "localhost:5432"                  # TCP socket probe (built-in)
   interval: 10s       # How often to check
-  timeout: 5s         # Max time for check command
+  timeout: 5s         # Max time for check
   retries: 3          # Failures before 'unhealthy'
   start_period: 30s   # Grace period after start
 ```
@@ -336,6 +379,8 @@ depends_on:
   - redis                      # condition: started (default)
   - name: api
     condition: healthy         # Wait for health check pass
+  - name: db
+    condition: log_ready       # Wait for ready_log_line regex match
 ```
 
 When starting a group, processes wait for their dependencies:
@@ -470,7 +515,7 @@ uv sync --all-extras
 # Run CLI
 uv run python -m procler --help
 
-# Run tests (154 tests)
+# Run tests (320+ tests)
 uv run pytest tests/ -v
 
 # Dev server

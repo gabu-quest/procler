@@ -51,6 +51,9 @@ htmlcov/
 # Local development preferences
 CLAUDE.local.md
 
+# Sandbox testing documents
+.sandbox/
+
 # Frontend build (keep built static/ in git for ease of use)
 frontend/node_modules/
 frontend/dist/

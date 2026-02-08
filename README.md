@@ -29,31 +29,41 @@ Procler gives developers (and their AI coding assistants) a single pane of glass
 
 ## Demo
 
-<!-- TODO: Replace with actual recordings -->
-<!-- Record with: asciinema rec demo.cast -->
-<!-- Convert to GIF with: agg demo.cast demo.gif -->
+<!-- Record demos: bash scripts/record-demos.sh -->
+<!-- Requires: asciinema (uv tool install asciinema) -->
+<!-- GIF: cargo install agg, then: agg demo.cast demo.gif -->
+<!-- SVG: npx svg-term-cli --in demo.cast --out demo.svg --window -->
 
 <details>
 <summary>Basic Workflow (define, start, status, logs, stop)</summary>
 
+```bash
+procler define --name my-api --command "uvicorn main:app --port 8000"
+procler start my-api
+procler status my-api       # JSON with pid, uptime, linux_state
+procler logs my-api --tail 50
+procler stop my-api
 ```
-Coming soon - terminal recording
-```
+
+> Run `bash scripts/record-demos.sh` to generate animated recordings.
 </details>
 
 <details>
 <summary>Group Start with Dependency Ordering</summary>
 
-```
-Coming soon - terminal recording
+```bash
+procler group start backend  # Starts redis -> db -> api -> worker in order
+procler group status backend # Status of all processes in the group
+procler group stop backend   # Stops in reverse order
 ```
 </details>
 
 <details>
 <summary>Recipe Dry-Run and Execution</summary>
 
-```
-Coming soon - terminal recording
+```bash
+procler recipe run deploy --dry-run  # Preview steps without executing
+procler recipe run deploy            # Execute the multi-step recipe
 ```
 </details>
 
@@ -87,8 +97,12 @@ Coming soon - terminal recording
 # Recommended: install as a global tool
 uv tool install procler
 
+# With TUI support (terminal UI)
+uv tool install procler[tui]
+
 # Or via pip
 pip install procler
+pip install procler[tui]  # with TUI
 ```
 
 Or install from source:
@@ -235,7 +249,7 @@ All CLI commands return structured JSON for easy parsing by scripts and LLMs.
 | `procler stop NAME` | Stop a process (idempotent) |
 | `procler restart NAME [--clear-logs]` | Restart a process |
 | `procler status [NAME]` | Show status (all or single process) |
-| `procler list [--resolve]` | List all process definitions |
+| `procler list [--resolve] [--namespace NS]` | List all process definitions |
 | `procler remove NAME` | Remove a process definition |
 | `procler logs NAME [--tail N] [--since TIME] [-f]` | Get/follow logs |
 | `procler exec "CMD" [--context TYPE] [--container NAME]` | Execute one-off command |
@@ -283,6 +297,26 @@ All CLI commands return structured JSON for easy parsing by scripts and LLMs.
 | `procler snippet run NAME` | Run a saved snippet |
 | `procler snippet remove NAME` | Remove a snippet |
 
+### Export Commands
+
+| Command | Description |
+|---------|-------------|
+| `procler export systemd NAME` | Export a process as a systemd .service unit file |
+| `procler export systemd --all` | Export all local processes as systemd units |
+| `procler export compose` | Export all processes as docker-compose.yml |
+
+### Import Commands
+
+| Command | Description |
+|---------|-------------|
+| `procler import procfile PATH [--dry-run] [--merge]` | Import processes from a Procfile |
+
+### TUI Command
+
+| Command | Description |
+|---------|-------------|
+| `procler tui` | Launch interactive Terminal UI (requires `procler[tui]`) |
+
 ### Server Commands
 
 | Command | Description |
@@ -318,8 +352,11 @@ processes:
     cwd: /path/to/project
     tags: [backend, api]
     description: "API server"
+    namespace: backend                    # Namespace isolation
+    ready_log_line: "Uvicorn running on"  # Regex for log_ready condition
+    max_memory: 512M                      # Auto-restart if RSS exceeds this
     healthcheck:
-      test: "curl -f http://localhost:${API_PORT}/health"
+      http_get: "http://localhost:${API_PORT}/health"  # HTTP probe (no curl needed)
       interval: 10s
       timeout: 5s
       retries: 3
@@ -328,10 +365,25 @@ processes:
   worker:
     command: celery worker -A tasks
     context: local
+    namespace: backend
+    replicas: 3                           # Start 3 instances (worker-1, worker-2, worker-3)
     depends_on:
       - redis
       - name: api
-        condition: healthy  # Wait for health check
+        condition: log_ready              # Wait for ready_log_line match
+      - name: db
+        condition: healthy                # Wait for health check
+
+  db:
+    command: postgres
+    healthcheck:
+      tcp_socket: "localhost:5432"        # TCP probe
+      interval: 5s
+      timeout: 3s
+
+  cleanup:
+    command: python scripts/cleanup.py
+    schedule: "0 */6 * * *"              # Cron: every 6 hours
 
   db-migrate:
     command: alembic upgrade head
@@ -341,8 +393,8 @@ processes:
 groups:
   backend:
     description: "Full backend stack"
-    processes: [redis, api, worker]
-    stop_order: [worker, api, redis]  # Optional custom order
+    processes: [redis, db, api, worker]
+    stop_order: [worker, api, db, redis]  # Optional custom order
 
 recipes:
   deploy:
@@ -364,6 +416,74 @@ snippets:
     description: "Rebuild containers"
     tags: [docker]
 ```
+
+### New Config Features
+
+#### Dependency Conditions
+
+```yaml
+depends_on:
+  - redis                        # condition: started (default)
+  - name: api
+    condition: healthy            # Wait for health check to pass
+  - name: db
+    condition: log_ready          # Wait for ready_log_line regex match
+```
+
+#### Health Check Probes
+
+Three probe types (use exactly one per healthcheck):
+
+```yaml
+healthcheck:
+  test: "curl -f http://localhost:8000/health"  # Command probe
+  # OR
+  http_get: "http://localhost:8000/health"      # HTTP GET probe (built-in)
+  # OR
+  tcp_socket: "localhost:5432"                  # TCP socket probe (built-in)
+  interval: 10s
+  timeout: 5s
+  retries: 3
+```
+
+#### Process Replicas
+
+```yaml
+processes:
+  worker:
+    command: celery worker
+    replicas: 3  # Creates worker-1, worker-2, worker-3
+    # Each gets PROCLER_REPLICA_INDEX env var (1, 2, 3)
+```
+
+#### Memory Threshold
+
+```yaml
+processes:
+  api:
+    command: uvicorn main:app
+    max_memory: 512M  # Auto-restart if RSS exceeds this (supports K, M, G)
+```
+
+#### Scheduled Processes
+
+```yaml
+processes:
+  cleanup:
+    command: python cleanup.py
+    schedule: "0 */6 * * *"  # Cron expression
+```
+
+#### Namespaces
+
+```yaml
+processes:
+  api:
+    command: uvicorn main:app
+    namespace: project-a  # Default: "default"
+```
+
+Filter by namespace: `procler list --namespace project-a`
 
 ## CLI Output Format
 
@@ -425,6 +545,7 @@ Base URL: `http://localhost:8000/api`
 | `/api/snippets/{name}/run` | POST | Run snippet |
 | `/api/config` | GET | Config status |
 | `/api/config/reload` | POST | Reload config |
+| `/api/config/export/{format}` | GET | Export config (systemd, compose) |
 | `/api/health` | GET | Health check |
 
 ## WebSocket
@@ -460,7 +581,7 @@ ws.send(JSON.stringify({action: "subscribe_status"}));
 # Install dev dependencies
 uv pip install -e .[dev]
 
-# Run tests (154 tests)
+# Run tests (320+ tests)
 uv run pytest -v
 
 # Run CLI in development
