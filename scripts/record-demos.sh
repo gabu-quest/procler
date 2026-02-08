@@ -2,6 +2,11 @@
 # Record terminal demos for Procler README
 # Requires: asciinema (uv tool install asciinema)
 # Optional: agg for GIF (cargo install agg), svg-term-cli for SVG (npx svg-term-cli)
+#
+# TODO: Install agg on a box with Rust toolchain and generate GIFs:
+#   cargo install agg
+#   agg docs/demos/basic-workflow.cast docs/demos/basic-workflow.gif --font-size 14
+#   (repeat for group-start and recipe-execution)
 set -euo pipefail
 
 DEMO_DIR="docs/demos"
