@@ -350,21 +350,23 @@ class ProclerConfig(BaseModel):
             for i, step_data in enumerate(recipe.steps):
                 if "start" in step_data and step_data["start"] not in self.processes:
                     errors.append(
-                        f"Recipe '{recipe_name}' step {i+1} references unknown process '{step_data['start']}'"
+                        f"Recipe '{recipe_name}' step {i + 1} references unknown process '{step_data['start']}'"
                     )
                 if "stop" in step_data and step_data["stop"] not in self.processes:
-                    errors.append(f"Recipe '{recipe_name}' step {i+1} references unknown process '{step_data['stop']}'")
+                    errors.append(
+                        f"Recipe '{recipe_name}' step {i + 1} references unknown process '{step_data['stop']}'"
+                    )
                 if "restart" in step_data and step_data["restart"] not in self.processes:
                     errors.append(
-                        f"Recipe '{recipe_name}' step {i+1} references unknown process '{step_data['restart']}'"
+                        f"Recipe '{recipe_name}' step {i + 1} references unknown process '{step_data['restart']}'"
                     )
                 if "group_start" in step_data and step_data["group_start"] not in self.groups:
                     errors.append(
-                        f"Recipe '{recipe_name}' step {i+1} references unknown group '{step_data['group_start']}'"
+                        f"Recipe '{recipe_name}' step {i + 1} references unknown group '{step_data['group_start']}'"
                     )
                 if "group_stop" in step_data and step_data["group_stop"] not in self.groups:
                     errors.append(
-                        f"Recipe '{recipe_name}' step {i+1} references unknown group '{step_data['group_stop']}'"
+                        f"Recipe '{recipe_name}' step {i + 1} references unknown group '{step_data['group_stop']}'"
                     )
 
         # Check docker contexts have containers

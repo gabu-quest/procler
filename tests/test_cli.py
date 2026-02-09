@@ -20,7 +20,7 @@ def test_version():
 
     # Verify __init__.py matches pyproject.toml
     assert __version__ == expected_version, (
-        f"Version mismatch: __init__.py has {__version__}, " f"pyproject.toml has {expected_version}"
+        f"Version mismatch: __init__.py has {__version__}, pyproject.toml has {expected_version}"
     )
 
     # Verify CLI output matches

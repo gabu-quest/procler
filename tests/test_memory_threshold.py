@@ -92,7 +92,7 @@ class TestGetProcessRssBytes:
 
     def test_reads_rss_from_proc_status(self, tmp_path):
         """Mocked /proc/{pid}/status with known VmRSS."""
-        status_content = "Name:\ttest_proc\n" "State:\tS (sleeping)\n" "VmRSS:\t102400 kB\n" "VmSize:\t200000 kB\n"
+        status_content = "Name:\ttest_proc\nState:\tS (sleeping)\nVmRSS:\t102400 kB\nVmSize:\t200000 kB\n"
         with patch("procler.core.process_manager.Path") as mock_path:
             mock_instance = mock_path.return_value
             mock_instance.exists.return_value = True

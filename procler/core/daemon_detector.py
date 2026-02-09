@@ -113,7 +113,7 @@ class DaemonDetector:
                 return pid
             await asyncio.sleep(poll_interval)
 
-        logger.warning(f"Daemon with pattern '{pattern}' not found after {timeout}s " f"({attempts} attempts)")
+        logger.warning(f"Daemon with pattern '{pattern}' not found after {timeout}s ({attempts} attempts)")
         return None
 
     async def is_pid_running(

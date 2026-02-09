@@ -41,7 +41,7 @@ def parse_procfile(content: str) -> dict[str, ProcessDef]:
         # Validate name (alphanumeric, hyphens, underscores)
         if not all(c.isalnum() or c in "-_" for c in name):
             raise ValueError(
-                f"Line {line_num}: Invalid process name '{name}' " "(only alphanumeric, hyphens, underscores allowed)"
+                f"Line {line_num}: Invalid process name '{name}' (only alphanumeric, hyphens, underscores allowed)"
             )
 
         if name in processes:

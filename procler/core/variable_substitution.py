@@ -20,7 +20,7 @@ def warn_suspicious_vars(vars: dict[str, str]) -> None:
         for pattern in SUSPICIOUS_PATTERNS:
             if pattern in value:
                 logger.warning(
-                    f"Variable '{name}' contains suspicious pattern '{pattern}'. " f"Ensure this is intentional."
+                    f"Variable '{name}' contains suspicious pattern '{pattern}'. Ensure this is intentional."
                 )
                 break
 
