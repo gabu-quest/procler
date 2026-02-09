@@ -47,6 +47,7 @@ class Process(SQLerModel):
     auto_restart: bool = False
     restart_delay_seconds: int = 5
     tags: list[str] | None = None
+    namespace: str = "default"
     created_at: str | None = None
     updated_at: str | None = None
 

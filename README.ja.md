@@ -22,15 +22,54 @@ Proclerは、開発者（およびAIコーディングアシスタント）に�
 - **デュアルインターフェースの一貫性** - CLIとWeb UIは同じProcessManagerコアを共有
 - **コンテキスト抽象化** - ローカルプロセスとDockerコンテナを統一的に管理
 - **グループ＆レシピ** - 依存関係を持つマルチプロセスワークフローをオーケストレーション
-- **ヘルスチェック** - 設定可能なチェックでプロセスの健全性を監視
+- **ヘルスチェック** - HTTP/TCP/コマンドプローブによるプロセス監視
 - **スニペット** - 再利用可能なコマンドをタグ付きで保存
 - **リアルタイム更新** - WebSocketによるライブステータスとログストリーミング
 - **設定変数** - config.yamlで`vars`を定義し、`${VAR}`で参照
+- **プロセスレプリカ** - `replicas: N`で複数インスタンスを自動生成
+- **名前空間** - プロセスのグルーピングとフィルタリング
+- **スケジュール実行** - cron式による定期実行
+- **メモリ閾値** - RSS超過時の自動再起動
+- **エクスポート** - systemdユニット/Docker Compose形式に出力
+- **インポート** - Procfileからの移行サポート
+- **ターミナルUI** - Textualベースの対話型TUI
+
+## 比較表
+
+| 機能 | Procler | Process Compose | PM2 | Supervisord | Foreman |
+|------|:-------:|:---------------:|:---:|:-----------:|:-------:|
+| LLMファーストJSON CLI | ✅ | - | - | - | - |
+| Webダッシュボード（無料） | ✅ | - | 有料 | - | - |
+| Dockerコンテナ実行 | ✅ | - | 拡張 | - | - |
+| ヘルスチェック | ✅ | ✅ | - | - | - |
+| 依存関係付き起動 | ✅ | ✅ | - | - | - |
+| `log_ready`条件 | ✅ | ✅ | - | - | - |
+| マルチステップレシピ | ✅ | - | - | - | - |
+| スニペット（コマンドライブラリ） | ✅ | - | - | - | - |
+| 監査証跡 | ✅ | - | - | - | - |
+| WebSocketリアルタイム | ✅ | - | - | - | - |
+| 設定説明（LLM） | ✅ | - | - | - | - |
+| メモリ閾値再起動 | ✅ | - | ✅ | - | - |
+| HTTP/TCPレディネスプローブ | ✅ | ✅ | - | - | - |
+| systemdエクスポート | ✅ | - | - | - | ✅ |
+| cron/スケジュール実行 | ✅ | ✅ | - | - | - |
+| プロセスレプリカ | ✅ | ✅ | ✅ | - | - |
+| Procfileインポート | ✅ | - | - | - | ✅ |
+| TUIモード | ✅ | ✅ | - | - | - |
+| 言語非依存 | ✅ | ✅ | Node.js | Python | Ruby |
 
 ## インストール
 
 ```bash
+# 推奨: グローバルツールとしてインストール
+uv tool install procler
+
+# TUIサポート付き（ターミナルUI）
+uv tool install procler[tui]
+
+# またはpip経由
 pip install procler
+pip install procler[tui]  # TUI付き
 ```
 
 ソースからインストール:
@@ -38,7 +77,7 @@ pip install procler
 ```bash
 git clone https://github.com/gabu-quest/procler.git
 cd procler
-uv pip install -e .[dev]
+uv sync --all-extras
 ```
 
 > **注意:** フロントエンドはビルド済みで同梱されています。別途ビルドは不要です！
@@ -143,6 +182,39 @@ procler snippet list --tag docker
 procler snippet run rebuild-api
 ```
 
+### エクスポート
+
+```bash
+# systemdユニットファイルとしてエクスポート
+procler export systemd my-api
+
+# 全ローカルプロセスをsystemdユニットとしてエクスポート
+procler export systemd --all
+
+# docker-compose.ymlとしてエクスポート
+procler export compose
+```
+
+### インポート
+
+```bash
+# Procfileからインポート
+procler import procfile Procfile
+
+# プレビューのみ（書き込みなし）
+procler import procfile Procfile --dry-run
+
+# 既存設定にマージ
+procler import procfile Procfile --merge
+```
+
+### ターミナルUI
+
+```bash
+# 対話型TUIを起動（procler[tui]が必要）
+procler tui
+```
+
 ### Webサーバー
 
 ```bash
@@ -177,26 +249,10 @@ procler serve --reload
 | `procler stop NAME` | プロセスを停止（冪等） |
 | `procler restart NAME [--clear-logs]` | プロセスを再起動 |
 | `procler status [NAME]` | ステータスを表示（全体または単一） |
-| `procler list [--resolve]` | 全プロセス定義を一覧表示 |
+| `procler list [--resolve] [--namespace NS]` | 全プロセス定義を一覧表示 |
 | `procler remove NAME` | プロセス定義を削除 |
 | `procler logs NAME [--tail N] [--since TIME] [-f]` | ログを取得/フォロー |
 | `procler exec "CMD" [--context TYPE] [--container NAME]` | 単発コマンドを実行 |
-
-#### defineオプション
-
-| オプション | 説明 |
-|----------|------|
-| `--name` | プロセス名（必須） |
-| `--command` | 実行するコマンド（必須） |
-| `--context` | `local` または `docker`（デフォルト: local） |
-| `--container` | Dockerコンテナ名（dockerの場合必須） |
-| `--cwd` | 作業ディレクトリ |
-| `--display-name` | 表示用の名前 |
-| `--tags` | カンマ区切りのタグ |
-| `--daemon-mode` | デーモンモードを有効化（フォークするプロセス用） |
-| `--daemon-pattern` | デーモンを検索するプロセス名パターン |
-| `--daemon-pidfile` | デーモンのpidfileパス |
-| `--force` | 既存の定義を上書き |
 
 ### グループコマンド
 
@@ -224,6 +280,26 @@ procler serve --reload
 | `procler snippet save --name NAME --command CMD [オプション]` | 新しいスニペットを保存 |
 | `procler snippet run NAME` | 保存済みスニペットを実行 |
 | `procler snippet remove NAME` | スニペットを削除 |
+
+### エクスポートコマンド
+
+| コマンド | 説明 |
+|---------|------|
+| `procler export systemd NAME` | systemd .serviceユニットファイルとしてエクスポート |
+| `procler export systemd --all` | 全ローカルプロセスをsystemdユニットとしてエクスポート |
+| `procler export compose` | docker-compose.ymlとしてエクスポート |
+
+### インポートコマンド
+
+| コマンド | 説明 |
+|---------|------|
+| `procler import procfile PATH [--dry-run] [--merge]` | Procfileからプロセスをインポート |
+
+### TUIコマンド
+
+| コマンド | 説明 |
+|---------|------|
+| `procler tui` | 対話型ターミナルUIを起動（`procler[tui]`が必要） |
 
 ### サーバーコマンド
 
@@ -260,8 +336,11 @@ processes:
     cwd: /path/to/project
     tags: [backend, api]
     description: "APIサーバー"
+    namespace: backend                    # 名前空間による分離
+    ready_log_line: "Uvicorn running on"  # log_ready条件用の正規表現
+    max_memory: 512M                      # RSS超過時に自動再起動
     healthcheck:
-      test: "curl -f http://localhost:${API_PORT}/health"
+      http_get: "http://localhost:${API_PORT}/health"  # HTTPプローブ（curl不要）
       interval: 10s
       timeout: 5s
       retries: 3
@@ -270,10 +349,25 @@ processes:
   worker:
     command: celery worker -A tasks
     context: local
+    namespace: backend
+    replicas: 3                           # 3インスタンス起動（worker-1, worker-2, worker-3）
     depends_on:
       - redis
       - name: api
-        condition: healthy  # ヘルスチェック待機
+        condition: log_ready              # ready_log_lineのマッチを待機
+      - name: db
+        condition: healthy                # ヘルスチェック合格を待機
+
+  db:
+    command: postgres
+    healthcheck:
+      tcp_socket: "localhost:5432"        # TCPプローブ
+      interval: 5s
+      timeout: 3s
+
+  cleanup:
+    command: python scripts/cleanup.py
+    schedule: "0 */6 * * *"              # cron: 6時間ごと
 
   db-migrate:
     command: alembic upgrade head
@@ -283,8 +377,8 @@ processes:
 groups:
   backend:
     description: "フルバックエンドスタック"
-    processes: [redis, api, worker]
-    stop_order: [worker, api, redis]  # カスタム順序（オプション）
+    processes: [redis, db, api, worker]
+    stop_order: [worker, api, db, redis]  # カスタム停止順序（オプション）
 
 recipes:
   deploy:
@@ -306,6 +400,74 @@ snippets:
     description: "コンテナを再ビルド"
     tags: [docker]
 ```
+
+### 新しい設定機能
+
+#### 依存関係条件
+
+```yaml
+depends_on:
+  - redis                        # condition: started（デフォルト）
+  - name: api
+    condition: healthy            # ヘルスチェック合格を待機
+  - name: db
+    condition: log_ready          # ready_log_lineの正規表現マッチを待機
+```
+
+#### ヘルスチェックプローブ
+
+3種類のプローブ（healthcheckごとに1つ使用）:
+
+```yaml
+healthcheck:
+  test: "curl -f http://localhost:8000/health"  # コマンドプローブ
+  # または
+  http_get: "http://localhost:8000/health"      # HTTP GETプローブ（組み込み）
+  # または
+  tcp_socket: "localhost:5432"                  # TCPソケットプローブ（組み込み）
+  interval: 10s
+  timeout: 5s
+  retries: 3
+```
+
+#### プロセスレプリカ
+
+```yaml
+processes:
+  worker:
+    command: celery worker
+    replicas: 3  # worker-1, worker-2, worker-3を作成
+    # 各レプリカにPROCLER_REPLICA_INDEX環境変数が設定される（1, 2, 3）
+```
+
+#### メモリ閾値
+
+```yaml
+processes:
+  api:
+    command: uvicorn main:app
+    max_memory: 512M  # RSS超過時に自動再起動（K, M, Gサポート）
+```
+
+#### スケジュール実行
+
+```yaml
+processes:
+  cleanup:
+    command: python cleanup.py
+    schedule: "0 */6 * * *"  # cron式
+```
+
+#### 名前空間
+
+```yaml
+processes:
+  api:
+    command: uvicorn main:app
+    namespace: project-a  # デフォルト: "default"
+```
+
+名前空間でフィルタリング: `procler list --namespace project-a`
 
 ## CLI出力フォーマット
 
@@ -367,6 +529,7 @@ snippets:
 | `/api/snippets/{name}/run` | POST | スニペット実行 |
 | `/api/config` | GET | 設定ステータス |
 | `/api/config/reload` | POST | 設定リロード |
+| `/api/config/export/{format}` | GET | 設定エクスポート（systemd, compose） |
 | `/api/health` | GET | ヘルスチェック |
 
 ## WebSocket
@@ -400,9 +563,9 @@ ws.send(JSON.stringify({action: "subscribe_status"}));
 
 ```bash
 # 開発依存関係をインストール
-uv pip install -e .[dev]
+uv sync --all-extras
 
-# テスト実行（154テスト）
+# テスト実行（320+テスト）
 uv run pytest -v
 
 # 開発でCLIを実行

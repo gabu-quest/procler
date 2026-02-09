@@ -51,6 +51,14 @@ htmlcov/
 # Local development preferences
 CLAUDE.local.md
 
+# Sandbox testing documents
+.sandbox/
+
+# Demo recordings (regenerated via scripts/record-demos.sh)
+docs/demos/*.cast
+docs/demos/*.gif
+docs/demos/*.svg
+
 # Frontend build (keep built static/ in git for ease of use)
 frontend/node_modules/
 frontend/dist/

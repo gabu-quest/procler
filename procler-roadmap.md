@@ -24,8 +24,9 @@ Developers running multiple services face daily friction:
 Procler provides:
 1. **Web Dashboard** - Visual monitoring, log viewing, one-click control
 2. **LLM-First CLI** - JSON-native commands designed for Claude Code integration
+3. **Terminal UI** - Interactive TUI for terminal-native workflows
 
-Both interfaces are equals, sharing the same core logic. The CLI is not an afterthought wrapper - it's a primary interface optimized for programmatic use.
+All interfaces share the same core logic. The CLI is not an afterthought wrapper - it's a primary interface optimized for programmatic use.
 
 ---
 
@@ -33,7 +34,7 @@ Both interfaces are equals, sharing the same core logic. The CLI is not an after
 
 ### 1. LLM-First CLI Design
 - **JSON-native output** - All commands return structured JSON, never human-formatted tables
-- **Self-documenting** - `--capabilities` returns full command schema for discovery
+- **Self-documenting** - `capabilities` returns full command schema for discovery
 - **Idempotent operations** - Safe to retry; `start` on running process returns current state
 - **Rich error context** - Errors include suggestions and available options
 
@@ -43,7 +44,7 @@ Both interfaces are equals, sharing the same core logic. The CLI is not an after
 - Same data model, same business logic
 
 ### 3. Context Abstraction
-- Execution contexts (local, docker, future: WSL) are pluggable
+- Execution contexts (local, docker) are pluggable
 - Process definitions are context-aware but interface-agnostic
 
 ### 4. Minimal Dependencies
@@ -57,12 +58,15 @@ Both interfaces are equals, sharing the same core logic. The CLI is not an after
 
 | Layer | Technology |
 |-------|------------|
-| Backend | Python 3.11+, FastAPI |
+| Backend | Python 3.12+, FastAPI |
 | Database | SQLite via sqler (JSON-first micro-ORM) |
-| Frontend | Vue 3, Vite, Pinia |
+| Config | YAML with Pydantic validation |
+| Frontend | Vue 3, Vite, Pinia, Naive UI |
 | CLI | Click |
+| TUI | Textual (optional extra) |
 | Docker | docker-py SDK |
 | Real-time | WebSockets (native FastAPI) |
+| Scheduling | croniter |
 | Serving | FastAPI serves Vue static files |
 
 ---
@@ -72,641 +76,250 @@ Both interfaces are equals, sharing the same core logic. The CLI is not an after
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        INTERFACES                           │
-├─────────────────────────────┬───────────────────────────────┤
-│     CLI (click)             │      Web UI (Vue 3)           │
-│     JSON output             │      WebSocket real-time      │
-└─────────────┬───────────────┴───────────────┬───────────────┘
-              │                               │
-              │         FastAPI               │
-              │        /api/...               │
-              └───────────────┬───────────────┘
-                              │
-              ┌───────────────▼───────────────┐
-              │        ProcessManager         │
-              │      (Core Business Logic)    │
-              └───────────────┬───────────────┘
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        │                     │                     │
-        ▼                     ▼                     ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│ LocalContext  │   │ DockerContext │   │ Future: WSL   │
-│ (subprocess)  │   │ (docker SDK)  │   │               │
-└───────────────┘   └───────────────┘   └───────────────┘
-                              │
-              ┌───────────────▼───────────────┐
-              │      sqler Database           │
-              │  (processes, logs, snippets)  │
-              └───────────────────────────────┘
-```
-
----
-
-## Data Model
-
-### processes
-```sql
-CREATE TABLE processes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL,           -- CLI identifier (e.g., "auth-api")
-    display_name TEXT,                   -- Human-friendly (e.g., "Auth API")
-    command TEXT NOT NULL,               -- Command to execute
-    context_type TEXT DEFAULT 'local',   -- "local" | "docker"
-    container_name TEXT,                 -- For docker context
-    cwd TEXT,                            -- Working directory
-    env_json TEXT,                       -- JSON object of env vars
-    auto_restart INTEGER DEFAULT 0,      -- Boolean: restart on crash
-    restart_delay_seconds INTEGER DEFAULT 5,
-    tags_json TEXT,                      -- JSON array of tags
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### process_state
-```sql
-CREATE TABLE process_state (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    process_id INTEGER UNIQUE NOT NULL,
-    status TEXT DEFAULT 'stopped',       -- stopped|running|error|starting|stopping
-    pid INTEGER,                         -- OS process ID
-    started_at TEXT,
-    exit_code INTEGER,
-    error_message TEXT,
-    FOREIGN KEY (process_id) REFERENCES processes(id)
-);
-```
-
-### logs
-```sql
-CREATE TABLE logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    process_id INTEGER NOT NULL,
-    timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-    stream TEXT DEFAULT 'stdout',        -- stdout|stderr
-    line TEXT,
-    FOREIGN KEY (process_id) REFERENCES processes(id)
-);
-
-CREATE INDEX idx_logs_process_timestamp ON logs(process_id, timestamp DESC);
-```
-
-### snippets
-```sql
-CREATE TABLE snippets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT UNIQUE NOT NULL,
-    command TEXT NOT NULL,
-    description TEXT,
-    context_type TEXT DEFAULT 'local',
-    container_name TEXT,
-    tags_json TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-```
-
----
-
-## CLI Command Reference
-
-All commands output JSON to stdout. Exit code 0 on success, non-zero on failure.
-
-### Discovery
-```bash
-procler capabilities          # Returns JSON schema of all commands
-```
-
-### Process Control
-```bash
-procler status [NAME]         # All processes or specific one
-procler start <NAME>          # Start (idempotent - no-op if running)
-procler stop <NAME>           # Stop (idempotent - no-op if stopped)
-procler restart <NAME>        # Stop then start
-```
-
-### Process Definitions
-```bash
-procler define \
-  --name <NAME> \
-  --command <CMD> \
-  --context <local|docker> \
-  --container <CONTAINER> \     # Required if context=docker
-  --cwd <PATH> \
-  --display-name <DISPLAY> \
-  --tags <TAG1,TAG2>
-
-procler remove <NAME>
-procler list                   # List all definitions
-```
-
-### Logs
-```bash
-procler logs <NAME> \
-  --tail <N> \                  # Last N lines (default: 100)
-  --since <DURATION>            # e.g., "5m", "1h", ISO timestamp
-```
-
-### Arbitrary Execution
-```bash
-procler exec <COMMAND> \
-  --context <local|docker> \
-  --container <CONTAINER> \
-  --cwd <PATH>
-```
-
-### Snippets
-```bash
-procler snippet list [--tag TAG]
-procler snippet save \
-  --name <NAME> \
-  --command <CMD> \
-  --description <DESC> \
-  --context <local|docker> \
-  --container <CONTAINER> \
-  --tags <TAG1,TAG2>
-procler snippet run <NAME>
-procler snippet remove <NAME>
-```
-
-### Example JSON Output
-```json
-// procler status
-{
-  "success": true,
-  "data": {
-    "processes": [
-      {
-        "id": 1,
-        "name": "auth-api",
-        "display_name": "Auth API",
-        "command": "uvicorn auth.main:app --port 8001",
-        "context_type": "local",
-        "status": "running",
-        "pid": 12345,
-        "uptime_seconds": 3600
-      }
-    ]
-  }
-}
-
-// procler start auth-api (already running)
-{
-  "success": true,
-  "data": {
-    "status": "already_running",
-    "process": { ... }
-  }
-}
-
-// Error response
-{
-  "success": false,
-  "error": "Container 'db-postgres' not found",
-  "error_code": "container_not_found",
-  "suggestion": "Run 'docker ps -a' to list available containers",
-  "available_containers": ["web-nginx", "api-fastapi"]
-}
-```
-
----
-
-## Project Structure
-
-```
-procler/
-├── pyproject.toml
-├── README.md
-├── procler/
-│   ├── __init__.py
-│   ├── __main__.py              # python -m procler entrypoint
-│   ├── cli.py                   # Click CLI definitions
-│   ├── config.py                # Settings, paths, defaults
-│   ├── db.py                    # sqler setup and migrations
-│   ├── models.py                # Dataclasses for type hints
-│   │
-│   ├── core/                    # Shared business logic
-│   │   ├── __init__.py
-│   │   ├── process_manager.py   # Central coordinator
-│   │   ├── context_base.py      # Abstract ExecutionContext
-│   │   ├── context_local.py     # Subprocess implementation
-│   │   ├── context_docker.py    # Docker SDK implementation
-│   │   ├── log_collector.py     # Async log capture
-│   │   └── snippets.py          # Snippet operations
-│   │
-│   ├── api/                     # FastAPI application
-│   │   ├── __init__.py
-│   │   ├── app.py               # App factory
-│   │   ├── deps.py              # Dependency injection
-│   │   └── routes/
-│   │       ├── __init__.py
-│   │       ├── processes.py
-│   │       ├── logs.py
-│   │       ├── snippets.py
-│   │       └── ws.py            # WebSocket handler
-│   │
-│   └── static/                  # Vue build output (gitignored)
-│
-├── frontend/
-│   ├── package.json
-│   ├── vite.config.js
-│   ├── index.html
-│   └── src/
-│       ├── main.js
-│       ├── App.vue
-│       ├── router.js
-│       ├── stores/
-│       │   └── processes.js     # Pinia store
-│       ├── composables/
-│       │   ├── useWebSocket.js
-│       │   └── useApi.js
-│       ├── components/
-│       │   ├── ProcessCard.vue
-│       │   ├── ProcessForm.vue
-│       │   ├── LogViewer.vue
-│       │   ├── SnippetList.vue
-│       │   └── StatusBadge.vue
-│       └── views/
-│           ├── Dashboard.vue
-│           ├── ProcessDetail.vue
-│           └── Snippets.vue
-│
-├── tests/
-│   ├── conftest.py
-│   ├── test_cli.py
-│   ├── test_process_manager.py
-│   ├── test_context_local.py
-│   ├── test_context_docker.py
-│   └── test_api.py
-│
-└── scripts/
-    ├── build_frontend.sh
-    └── dev.sh
+├──────────────┬────────────────────┬─────────────────────────┤
+│  CLI (click) │   Web UI (Vue 3)   │   TUI (Textual)        │
+│  JSON output │   WebSocket        │   Interactive terminal  │
+└──────┬───────┴──────────┬─────────┴───────────┬─────────────┘
+       │                  │                     │
+       │           FastAPI /api/...             │
+       └──────────────────┬─────────────────────┘
+                          │
+           ┌──────────────▼──────────────┐
+           │      ProcessManager         │
+           │   (Core Business Logic)     │
+           │   + Groups, Recipes,        │
+           │     Health, Scheduler       │
+           └──────────────┬──────────────┘
+                          │
+       ┌──────────────────┼──────────────────┐
+       │                  │                  │
+       ▼                  ▼                  ▼
+┌─────────────┐  ┌──────────────┐  ┌──────────────┐
+│ LocalContext │  │ DockerContext │  │ Future: WSL  │
+│ (subprocess) │  │ (docker SDK) │  │              │
+└─────────────┘  └──────────────┘  └──────────────┘
+                          │
+           ┌──────────────▼──────────────┐
+           │      sqler Database         │
+           │ (processes, logs, snippets) │
+           └─────────────────────────────┘
 ```
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Foundation
+### Phase 1: Foundation ✅
 **Goal:** Project scaffolding and database layer
 
-**Deliverables:**
-- [ ] Initialize project with pyproject.toml
-- [ ] Set up directory structure
-- [ ] Implement db.py with sqler table creation
-- [ ] Create models.py with dataclasses
-- [ ] Basic config.py (db path, defaults)
-- [ ] CLI skeleton with `procler capabilities` command
-- [ ] `procler --version`
-
-**Acceptance Criteria:**
-```bash
-python -m procler capabilities
-# Returns valid JSON schema
-
-python -m procler --version
-# Returns version string
-```
+- [x] Initialize project with pyproject.toml
+- [x] Set up directory structure
+- [x] Implement db.py with sqler table creation
+- [x] Create models.py with dataclasses
+- [x] Basic config.py (db path, defaults)
+- [x] CLI skeleton with `procler capabilities` command
+- [x] `procler --version`
 
 ---
 
-### Phase 2: Core Process Management (Local)
+### Phase 2: Core Process Management (Local) ✅
 **Goal:** Start/stop/restart local processes with log capture
 
-**Deliverables:**
-- [ ] context_base.py with abstract ExecutionContext
-- [ ] context_local.py using asyncio.subprocess
-- [ ] process_manager.py coordinating operations
-- [ ] log_collector.py capturing stdout/stderr to database
-- [ ] CLI commands: define, remove, list, status, start, stop, restart
-
-**Acceptance Criteria:**
-```bash
-# Define a process
-procler define --name test-server --command "python -m http.server 8888"
-# {"success": true, "action": "created", "name": "test-server"}
-
-# Start it
-procler start test-server
-# {"success": true, "data": {"status": "started", "pid": 12345}}
-
-# Check status
-procler status test-server
-# {"success": true, "data": {"process": {"status": "running", ...}}}
-
-# Stop it
-procler stop test-server
-# {"success": true, "data": {"status": "stopped"}}
-```
+- [x] context_base.py with abstract ExecutionContext
+- [x] context_local.py using asyncio.subprocess
+- [x] process_manager.py coordinating operations
+- [x] Log capture of stdout/stderr to database
+- [x] CLI commands: define, remove, list, status, start, stop, restart
 
 ---
 
-### Phase 3: Logs & Exec
+### Phase 3: Logs & Exec ✅
 **Goal:** Log retrieval and arbitrary command execution
 
-**Deliverables:**
-- [ ] CLI logs command with --tail and --since
-- [ ] CLI exec command for local context
-- [ ] Log rotation/cleanup (keep last N entries per process)
-
-**Acceptance Criteria:**
-```bash
-procler logs test-server --tail 50
-# {"success": true, "logs": [...], "count": 50}
-
-procler exec "ls -la" --cwd /tmp
-# {"success": true, "data": {"stdout": "...", "exit_code": 0}}
-```
+- [x] CLI logs command with --tail and --since
+- [x] CLI exec command for local context
+- [x] Log rotation/cleanup (keep last N entries per process)
 
 ---
 
-### Phase 4: Docker Context
+### Phase 4: Docker Context ✅
 **Goal:** Execute processes inside Docker containers
 
-**Deliverables:**
-- [ ] context_docker.py using docker-py SDK
-- [ ] Container discovery and validation
-- [ ] Update define to accept --context docker --container
-- [ ] exec command with docker context
-
-**Acceptance Criteria:**
-```bash
-procler define \
-  --name db-migrate \
-  --command "alembic upgrade head" \
-  --context docker \
-  --container api-container
-# {"success": true, ...}
-
-procler start db-migrate
-# Executes inside container
-
-procler exec "pip list" --context docker --container api-container
-# {"success": true, "data": {"stdout": "..."}}
-```
+- [x] context_docker.py using docker-py SDK
+- [x] Container discovery and validation
+- [x] Update define to accept --context docker --container
+- [x] exec command with docker context
 
 ---
 
-### Phase 5: Snippets
+### Phase 5: Snippets ✅
 **Goal:** Reusable command library
 
-**Deliverables:**
-- [ ] snippets.py core logic
-- [ ] CLI snippet subcommands: list, save, run, remove
-- [ ] Tag filtering
-
-**Acceptance Criteria:**
-```bash
-procler snippet save \
-  --name rebuild-api \
-  --command "docker compose build api" \
-  --tags docker,build
-
-procler snippet list --tag docker
-# {"success": true, "snippets": [...]}
-
-procler snippet run rebuild-api
-# Executes command, returns result
-```
+- [x] snippets.py core logic
+- [x] CLI snippet subcommands: list, save, run, remove
+- [x] Tag filtering
 
 ---
 
-### Phase 6: FastAPI Backend
+### Phase 6: FastAPI Backend ✅
 **Goal:** REST API matching CLI functionality
 
-**Deliverables:**
-- [ ] app.py with FastAPI factory
-- [ ] routes/processes.py - CRUD + control endpoints
-- [ ] routes/logs.py - log retrieval
-- [ ] routes/snippets.py - snippet CRUD
-- [ ] deps.py for dependency injection
-- [ ] Shared ProcessManager instance
-
-**API Endpoints:**
-```
-GET    /api/processes           List all
-GET    /api/processes/{name}    Get one
-POST   /api/processes           Create/update definition
-DELETE /api/processes/{name}    Remove
-POST   /api/processes/{name}/start
-POST   /api/processes/{name}/stop
-POST   /api/processes/{name}/restart
-
-GET    /api/logs/{name}?tail=100&since=5m
-
-GET    /api/snippets
-POST   /api/snippets
-DELETE /api/snippets/{name}
-POST   /api/snippets/{name}/run
-```
-
-**Acceptance Criteria:**
-```bash
-curl http://localhost:8000/api/processes | jq
-# Same structure as CLI output
-
-curl -X POST http://localhost:8000/api/processes/test-server/start
-# {"success": true, ...}
-```
+- [x] app.py with FastAPI factory
+- [x] routes/processes.py - CRUD + control endpoints
+- [x] routes/logs.py - log retrieval
+- [x] routes/snippets.py - snippet CRUD
+- [x] deps.py for dependency injection
+- [x] Shared ProcessManager instance
 
 ---
 
-### Phase 7: WebSocket Real-time
+### Phase 7: WebSocket Real-time ✅
 **Goal:** Live status updates and log streaming
 
-**Deliverables:**
-- [ ] routes/ws.py WebSocket handler
-- [ ] ConnectionManager for subscriptions
-- [ ] Hook log_collector to broadcast new entries
-- [ ] Status change broadcasts
-
-**Protocol:**
-```json
-// Client -> Server
-{"action": "subscribe_logs", "process_id": 1}
-{"action": "unsubscribe_logs", "process_id": 1}
-
-// Server -> Client
-{"type": "status", "process_id": 1, "data": {"status": "running"}}
-{"type": "log", "process_id": 1, "data": {"timestamp": "...", "line": "..."}}
-```
+- [x] routes/ws.py WebSocket handler
+- [x] ConnectionManager for subscriptions
+- [x] Hook log capture to broadcast new entries
+- [x] Status change broadcasts
 
 ---
 
-### Phase 8: Vue Frontend - Foundation
+### Phase 8: Vue Frontend - Foundation ✅
 **Goal:** Basic Vue app with routing and state
 
-**Deliverables:**
-- [ ] Vite + Vue 3 project setup
-- [ ] Vue Router configuration
-- [ ] Pinia store for processes
-- [ ] useApi composable for fetch wrapper
-- [ ] useWebSocket composable
-- [ ] Basic layout component
-
-**Views:**
-- Dashboard (/)
-- Process Detail (/process/:name)
-- Snippets (/snippets)
+- [x] Vite + Vue 3 project setup
+- [x] Vue Router configuration
+- [x] Pinia store for processes
+- [x] useApi composable for fetch wrapper
+- [x] useWebSocket composable
+- [x] Basic layout component (AppLayout with Cyberpunk theme)
 
 ---
 
-### Phase 9: Vue Frontend - Dashboard
+### Phase 9: Vue Frontend - Dashboard ✅
 **Goal:** Main process overview with controls
 
-**Deliverables:**
-- [ ] Dashboard.vue - grid of process cards
-- [ ] ProcessCard.vue - status, controls, quick info
-- [ ] StatusBadge.vue - color-coded status indicator
-- [ ] Start/Stop/Restart buttons with loading states
-- [ ] Real-time status updates via WebSocket
+- [x] Dashboard.vue - stats, quick actions, recent activity
+- [x] Process list with status indicators
+- [x] Start/Stop/Restart buttons with per-action loading states
+- [x] Real-time status updates via WebSocket
 
 ---
 
-### Phase 10: Vue Frontend - Process Detail & Logs
+### Phase 10: Vue Frontend - Process Detail & Logs ✅
 **Goal:** Individual process view with live logs
 
-**Deliverables:**
-- [ ] ProcessDetail.vue - full process info
-- [ ] LogViewer.vue - scrolling log display
-- [ ] Log filtering by stream (stdout/stderr)
-- [ ] Auto-scroll with pause on manual scroll
-- [ ] WebSocket log subscription
+- [x] ProcessDetail.vue - full process info with breadcrumbs
+- [x] LogViewer with scrolling log display
+- [x] Log filtering by text (with match highlighting)
+- [x] Log filtering by stream (stdout/stderr)
+- [x] WebSocket log subscription
 
 ---
 
-### Phase 11: Vue Frontend - Process Form & Snippets
-**Goal:** CRUD interfaces
+### Phase 11: Vue Frontend - Groups, Recipes, Snippets ✅
+**Goal:** Full feature coverage in web UI
 
-**Deliverables:**
-- [ ] ProcessForm.vue - create/edit process definitions
-- [ ] Context type switching (local/docker fields)
-- [ ] Tag input component
-- [ ] Snippets.vue - snippet list view
-- [ ] SnippetForm.vue - create/edit snippets
-- [ ] Run snippet with output display
+- [x] Groups card-based view with one-click start/stop
+- [x] Recipes step preview, dry-run, execution progress
+- [x] Snippets management with confirmations
+- [x] Config view with stats, variables, changelog
+- [x] Keyboard shortcuts (press `?` to view all)
 
 ---
 
-### Phase 12: Production Polish
+### Phase 12: Production Polish ✅
 **Goal:** Production-ready deployment
 
-**Deliverables:**
-- [ ] Build script: compile Vue, copy to static/
-- [ ] FastAPI serves static files in production
-- [ ] CORS configuration for dev vs prod
-- [ ] Error handling improvements
-- [ ] Loading states throughout UI
-- [ ] procler serve command to start server
-- [ ] README with installation and usage
-- [ ] Basic test coverage
-
-**Final Commands:**
-```bash
-# Development
-cd frontend && npm run dev    # Vite dev server
-procler serve --reload       # FastAPI with hot reload
-
-# Production
-./scripts/build_frontend.sh   # Build Vue to static/
-procler serve                # Serves everything
-```
+- [x] Build script: compile Vue, copy to static/
+- [x] FastAPI serves static files in production
+- [x] CORS configuration for dev vs prod
+- [x] Error handling improvements
+- [x] Loading states throughout UI
+- [x] procler serve command to start server
+- [x] README with installation and usage
+- [x] 320+ tests
 
 ---
 
-### Phase 13: PyPI Publishing
+### Phase 13: PyPI Publishing ✅
 **Goal:** Package and publish to PyPI for easy installation
 
-**Deliverables:**
-- [ ] Finalize pyproject.toml metadata (author, classifiers, URLs)
-- [ ] Add project URLs (homepage, repository, documentation)
-- [ ] Create CHANGELOG.md with release notes
-- [ ] Set up GitHub Actions for automated publishing
-- [ ] Configure trusted publishing with PyPI
-- [ ] Publish initial release to PyPI
-- [ ] Verify `pip install procler` works
-
-**Acceptance Criteria:**
-```bash
-# Installation from PyPI
-pip install procler
-
-# Verify installation
-procler --version
-# procler, version 0.1.0
-
-procler capabilities
-# Returns JSON schema
-```
-
-**Publishing Workflow:**
-```bash
-# Build package
-python -m build
-
-# Upload to PyPI (via GitHub Actions or manual)
-python -m twine upload dist/*
-```
+- [x] Finalize pyproject.toml metadata (author, classifiers, URLs)
+- [x] Add project URLs (homepage, repository, documentation)
+- [x] Create CHANGELOG.md with release notes
+- [x] Set up GitHub Actions for automated publishing
+- [x] Configure trusted publishing with PyPI
+- [x] Publish initial release to PyPI
+- [x] Verify `pip install procler` works
 
 ---
 
-## Dependencies
+### Phase 14: YAML Config System ✅
+**Goal:** Version-controllable project configuration
 
-### pyproject.toml
-```toml
-[project]
-name = "procler"
-version = "0.1.0"
-description = "LLM-first process manager for developers"
-requires-python = ">=3.12"
-dependencies = [
-    "fastapi>=0.109.0",
-    "uvicorn[standard]>=0.27.0",
-    "click>=8.1.0",
-    "docker>=7.0.0",
-    "sqler>=1.0.0",
-    "websockets>=12.0",
-]
+- [x] Pydantic models for config schema
+- [x] YAML config loader with discovery order
+- [x] Config variables (`vars:` with `${VAR}` substitution)
+- [x] Config init, validate, explain, path commands
+- [x] Append-only audit trail (changelog.log)
 
-[project.scripts]
-procler = "procler.cli:cli"
+---
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-    "httpx>=0.26.0",
-    "ruff>=0.2.0",
-]
-```
+### Phase 15: Groups & Recipes ✅
+**Goal:** Orchestrated multi-process workflows
 
-### frontend/package.json
-```json
-{
-  "name": "procler-frontend",
-  "version": "0.1.0",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "vue": "^3.4.0",
-    "vue-router": "^4.2.0",
-    "pinia": "^2.1.0"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-vue": "^5.0.0",
-    "vite": "^5.0.0"
-  }
-}
-```
+- [x] Groups with ordered start/stop and dependency resolution
+- [x] Recipes for multi-step operations
+- [x] Dry-run support for recipes
+- [x] on_error: stop|continue for recipe error handling
+
+---
+
+### Phase 16: Health Checks & Dependencies ✅
+**Goal:** Process health monitoring and smart dependency resolution
+
+- [x] Command probe (`test:`)
+- [x] HTTP GET probe (`http_get:`) - built-in, no curl needed
+- [x] TCP socket probe (`tcp_socket:`) - built-in connectivity check
+- [x] `log_ready` dependency condition (regex match on stdout)
+- [x] `healthy` dependency condition (health check pass)
+- [x] Configurable interval, timeout, retries, start_period
+
+---
+
+### Phase 17: Advanced Process Features ✅
+**Goal:** Production-grade process management
+
+- [x] Memory threshold restart (`max_memory:`)
+- [x] Process replicas (`replicas: N`)
+- [x] Namespace isolation (`namespace:`)
+- [x] Cron/scheduled execution (`schedule:`)
+
+---
+
+### Phase 18: Export & Import ✅
+**Goal:** Interoperability with other tools
+
+- [x] Export to systemd .service unit files
+- [x] Export to docker-compose.yml
+- [x] Import from Procfile (Foreman/Overmind migration)
+- [x] Dry-run and merge modes for import
+
+---
+
+### Phase 19: Terminal UI ✅
+**Goal:** Interactive terminal interface
+
+- [x] Textual-based TUI with process list
+- [x] Live log viewer
+- [x] Start/stop/restart controls
+- [x] Optional extra: `procler[tui]`
 
 ---
 
 ## Success Criteria
 
-### MVP Complete When:
+### MVP Complete ✅
 1. ✅ Can define processes via CLI with JSON output
 2. ✅ Can start/stop/restart local processes
 3. ✅ Can start/stop/restart processes in Docker containers
@@ -718,28 +331,26 @@ dev = [
 9. ✅ Web UI shows live log streaming
 10. ✅ Claude Code can use CLI to manage all processes
 
-### Claude Code Integration Test:
-```
-Human: "My auth-api seems slow, check its recent logs and restart it if there are errors"
-
-Claude Code:
-1. procler logs auth-api --tail 100
-2. [Analyzes JSON log output]
-3. procler restart auth-api
-4. procler status auth-api
-5. Reports back to human
-```
+### Beyond MVP ✅
+11. ✅ Health checks with HTTP/TCP/command probes
+12. ✅ Groups with dependency-ordered startup
+13. ✅ Recipes for multi-step operations
+14. ✅ Process replicas and namespace isolation
+15. ✅ Cron/scheduled execution
+16. ✅ Export to systemd and Docker Compose
+17. ✅ Import from Procfile
+18. ✅ Terminal UI (TUI)
+19. ✅ 320+ tests
 
 ---
 
-## Future Enhancements (Post-MVP)
+## Future Enhancements
 
-- [ ] Auto-restart on crash with configurable delay
-- [ ] Health checks (HTTP endpoint, process exit monitoring)
-- [ ] Process groups and bulk operations
-- [ ] Rebuild hooks (run command before restart)
-- [ ] Import/export process definitions (JSON/YAML)
 - [ ] WSL context support
-- [ ] Process resource monitoring (CPU, memory)
-- [ ] Notification webhooks
+- [ ] Notification webhooks (Slack, Discord)
 - [ ] Multi-user support with auth
+- [ ] Process CPU/memory monitoring dashboard
+- [ ] Auto-restart on crash with configurable delay and backoff
+- [ ] Rebuild hooks (run command before restart)
+- [ ] Remote agent mode (manage processes on remote hosts)
+- [ ] Plugin system for custom contexts

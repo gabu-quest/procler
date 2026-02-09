@@ -618,14 +618,20 @@ def status(name: str | None) -> None:
 
 @cli.command("list")
 @click.option("--resolve", is_flag=True, help="Show commands with variables substituted")
-def list_processes(resolve: bool) -> None:
+@click.option("--namespace", "-n", default=None, help="Filter by namespace")
+def list_processes(resolve: bool, namespace: str | None) -> None:
     """List all process definitions."""
+    from sqler.query import SQLerField as F
+
     from .core.variable_substitution import substitute_vars_from_config
     from .db import init_database
     from .models import Process
 
     init_database()
-    processes = Process.query().all()
+    query = Process.query()
+    if namespace:
+        query = query.filter(F("namespace") == namespace)
+    processes = query.all()
 
     process_data = []
     for process in processes:
@@ -647,6 +653,7 @@ def list_processes(resolve: bool) -> None:
                 "container_name": process.container_name,
                 "cwd": process.cwd,
                 "tags": process.tags or [],
+                "namespace": getattr(process, "namespace", "default"),
                 "daemon_mode": getattr(process, "daemon_mode", False) or None,
                 "daemon_match_pattern": getattr(process, "daemon_match_pattern", None),
                 "daemon_container": daemon_container,
@@ -1225,6 +1232,74 @@ def recipe_run(name: str, dry_run: bool, continue_on_error: bool) -> None:
         sys.exit(1)
 
 
+# Export subcommands
+@cli.group()
+def export() -> None:
+    """Export process definitions to other formats."""
+    pass
+
+
+@export.command("systemd")
+@click.argument("name", required=False)
+@click.option("--all", "export_all", is_flag=True, help="Export all processes")
+def export_systemd(name: str | None, export_all: bool) -> None:
+    """Export process definition(s) as systemd .service unit files."""
+    from .config import get_config
+    from .core.export import export_systemd_unit
+
+    if not name and not export_all:
+        output_json(
+            error_response(
+                "Specify a process name or --all",
+                error_code="missing_argument",
+                suggestion="procler export systemd <name> or procler export systemd --all",
+            )
+        )
+        sys.exit(1)
+
+    try:
+        cfg = get_config()
+    except Exception as e:
+        output_json(error_response(str(e), error_code="config_error"))
+        sys.exit(1)
+
+    if export_all:
+        units = {}
+        for proc_name, proc_def in cfg.processes.items():
+            if proc_def.context.value == "local":
+                units[proc_name] = export_systemd_unit(proc_name, proc_def)
+        output_json(success_response({"units": units, "count": len(units)}))
+    else:
+        if name not in cfg.processes:
+            output_json(
+                error_response(
+                    f"Process '{name}' not found in config",
+                    error_code="process_not_found",
+                )
+            )
+            sys.exit(1)
+
+        proc_def = cfg.processes[name]
+        unit = export_systemd_unit(name, proc_def)
+        output_json(success_response({"name": name, "unit": unit}))
+
+
+@export.command("compose")
+def export_compose_cmd() -> None:
+    """Export all process definitions as docker-compose.yml."""
+    from .config import get_config
+    from .core.export import export_compose
+
+    try:
+        cfg = get_config()
+    except Exception as e:
+        output_json(error_response(str(e), error_code="config_error"))
+        sys.exit(1)
+
+    compose = export_compose(cfg.processes)
+    output_json(success_response({"compose": compose}))
+
+
 # Config subcommands
 @cli.group()
 def config() -> None:
@@ -1472,6 +1547,113 @@ def config_explain() -> None:
             }
         )
     )
+
+
+# Import subcommands
+@cli.group("import")
+def import_cmd() -> None:
+    """Import process definitions from external formats."""
+    pass
+
+
+@import_cmd.command("procfile")
+@click.argument("path", type=click.Path(exists=True))
+@click.option("--dry-run", is_flag=True, help="Preview without writing config")
+@click.option("--merge", is_flag=True, help="Merge into existing config instead of overwriting")
+def import_procfile(path: str, dry_run: bool, merge: bool) -> None:
+    """Import processes from a Procfile."""
+    from pathlib import Path as P
+
+    from .core.import_procfile import generate_config_yaml, parse_procfile_from_path
+
+    try:
+        processes = parse_procfile_from_path(P(path))
+    except (FileNotFoundError, ValueError) as e:
+        output_json(error_response(str(e), error_code="parse_error"))
+        sys.exit(1)
+
+    if not processes:
+        output_json(
+            error_response(
+                "No processes found in Procfile",
+                error_code="empty_procfile",
+                suggestion="Procfile format: 'name: command' (one per line)",
+            )
+        )
+        sys.exit(1)
+
+    # Load existing config if merging
+    existing_config = None
+    if merge:
+        try:
+            from .config import get_config_file_path
+
+            config_path = get_config_file_path()
+            if config_path.exists():
+                import yaml
+
+                with open(config_path) as f:
+                    existing_config = yaml.safe_load(f) or {}
+        except Exception:
+            pass  # No existing config to merge with
+
+    yaml_output = generate_config_yaml(processes, existing_config)
+
+    if dry_run:
+        process_list = [{"name": name, "command": proc.command} for name, proc in processes.items()]
+        output_json(
+            success_response(
+                {
+                    "dry_run": True,
+                    "processes": process_list,
+                    "count": len(processes),
+                    "yaml_preview": yaml_output,
+                }
+            )
+        )
+        return
+
+    # Write config
+    try:
+        from .config import find_config_dir
+
+        config_dir = find_config_dir()
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_path = config_dir / "config.yaml"
+        config_path.write_text(yaml_output)
+
+        process_list = [{"name": name, "command": proc.command} for name, proc in processes.items()]
+        output_json(
+            success_response(
+                {
+                    "imported": len(processes),
+                    "processes": process_list,
+                    "config_path": str(config_path),
+                }
+            )
+        )
+    except Exception as e:
+        output_json(error_response(str(e), error_code="write_error"))
+        sys.exit(1)
+
+
+# TUI command
+@cli.command()
+def tui() -> None:
+    """Launch the Terminal User Interface (requires 'tui' extra)."""
+    try:
+        from .tui.app import run_tui
+    except ImportError:
+        output_json(
+            error_response(
+                "TUI dependencies not installed",
+                error_code="missing_dependency",
+                suggestion="Install with: pip install procler[tui] or uv sync --extra tui",
+            )
+        )
+        sys.exit(1)
+
+    run_tui()
 
 
 if __name__ == "__main__":

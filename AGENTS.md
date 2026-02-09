@@ -18,10 +18,19 @@ procler stop <name>       # Idempotent
 procler restart <name>    # With optional --clear-logs
 procler status [name]     # Status with Linux kernel state
 procler logs <name>       # --tail N, --since 5m
+procler list              # --namespace NS to filter
 
 # Groups & Recipes
 procler group start <name>    # Ordered startup with dependencies
 procler recipe run <name>     # Multi-step operation (--dry-run to preview)
+
+# Export & Import
+procler export systemd <name>     # Export as systemd unit
+procler export compose            # Export as docker-compose.yml
+procler import procfile <path>    # Import from Procfile
+
+# TUI
+procler tui                       # Interactive terminal UI
 ```
 
 ---
@@ -71,8 +80,10 @@ Commands:
   config        Manage configuration (config.yaml).
   define        Define a new process.
   exec          Execute an arbitrary command.
+  export        Export processes (systemd, docker-compose).
   group         Manage process groups (defined in config.yaml).
   help-llm      Output comprehensive LLM-focused usage instructions.
+  import        Import processes from external formats.
   list          List all process definitions.
   logs          Get logs for a process.
   recipe        Manage and run recipes (multi-step operations).
@@ -83,6 +94,7 @@ Commands:
   start         Start a process (idempotent - no-op if running).
   status        Show status of all processes or a specific one.
   stop          Stop a process (idempotent - no-op if stopped).
+  tui           Launch interactive Terminal UI.
 ```
 
 ---
@@ -145,6 +157,12 @@ procler logs api --since 5m         # Last 5 minutes
 procler logs api --since 1h         # Last hour
 ```
 
+### List with Namespace Filter
+```bash
+procler list                        # All processes
+procler list --namespace backend    # Filter by namespace
+```
+
 ---
 
 ## Groups
@@ -171,10 +189,13 @@ groups:
 processes:
   api:
     command: uvicorn main:app
+    ready_log_line: "Uvicorn running on"  # Regex for log_ready
     depends_on:
       - redis                    # Wait for 'started'
       - name: database
         condition: healthy       # Wait for health check pass
+      - name: cache
+        condition: log_ready     # Wait for ready_log_line match
 ```
 
 ---
@@ -231,6 +252,47 @@ procler snippet remove rebuild
 
 ---
 
+## Health Checks
+
+Three probe types for monitoring process health:
+
+```yaml
+healthcheck:
+  test: "curl -f http://localhost:8000/health"  # Command probe
+  # OR
+  http_get: "http://localhost:8000/health"      # HTTP GET probe (built-in)
+  # OR
+  tcp_socket: "localhost:5432"                  # TCP socket probe (built-in)
+  interval: 10s
+  timeout: 5s
+  retries: 3
+  start_period: 30s
+```
+
+---
+
+## Export & Import
+
+### Export to systemd
+```bash
+procler export systemd api          # Single process
+procler export systemd --all        # All local processes
+```
+
+### Export to Docker Compose
+```bash
+procler export compose              # All processes as docker-compose.yml
+```
+
+### Import from Procfile
+```bash
+procler import procfile Procfile             # Import
+procler import procfile Procfile --dry-run   # Preview only
+procler import procfile Procfile --merge     # Merge into existing config
+```
+
+---
+
 ## Configuration
 
 ### Initialize
@@ -253,6 +315,9 @@ procler config explain   # Plain-language explanation
 ```yaml
 version: 1
 
+vars:
+  API_PORT: "8000"
+
 processes:
   redis:
     command: redis-server
@@ -260,12 +325,15 @@ processes:
     tags: [database, cache]
 
   api:
-    command: uvicorn main:app --reload
+    command: uvicorn main:app --reload --port ${API_PORT}
     context: local
     cwd: /home/user/myapp
     tags: [backend]
+    namespace: backend
+    ready_log_line: "Uvicorn running on"
+    max_memory: 512M
     healthcheck:
-      test: "curl -f http://localhost:8000/health"
+      http_get: "http://localhost:${API_PORT}/health"
       interval: 10s
       timeout: 5s
       retries: 3
@@ -277,9 +345,14 @@ processes:
     command: celery -A tasks worker
     context: docker
     container: myapp-worker
+    replicas: 3
     depends_on:
       - name: api
         condition: healthy
+
+  cleanup:
+    command: python scripts/cleanup.py
+    schedule: "0 */6 * * *"
 
 groups:
   backend:
@@ -328,8 +401,17 @@ procler serve --reload                 # Development mode
 | GET | /api/groups | List groups |
 | POST | /api/groups/{name}/start | Start group |
 | POST | /api/groups/{name}/stop | Stop group |
+| GET | /api/groups/{name}/status | Group status |
 | GET | /api/recipes | List recipes |
 | POST | /api/recipes/{name}/run | Run recipe |
+| GET | /api/snippets | List snippets |
+| POST | /api/snippets | Create snippet |
+| GET | /api/snippets/{name} | Get snippet |
+| DELETE | /api/snippets/{name} | Remove snippet |
+| POST | /api/snippets/{name}/run | Run snippet |
+| GET | /api/config | Config status |
+| POST | /api/config/reload | Reload config |
+| GET | /api/config/export/{format} | Export (systemd, compose) |
 | GET | /api/health | Health check |
 
 ### WebSocket
@@ -337,7 +419,7 @@ Connect to `ws://localhost:8000/api/ws` for real-time updates:
 ```json
 {"action": "subscribe_logs", "process_id": 1}
 {"action": "subscribe_status", "process_id": 1}
-{"action": "subscribe_status"}  // All processes
+{"action": "subscribe_status"}
 ```
 
 ---
@@ -367,6 +449,18 @@ procler recipe run deploy             # Execute
 ```bash
 procler exec "npm run build" --cwd /app
 procler exec "python manage.py migrate" --context docker --container myapp
+```
+
+### Migrate from Foreman/Overmind
+```bash
+procler import procfile Procfile --dry-run  # Preview
+procler import procfile Procfile            # Import
+```
+
+### Export for Production
+```bash
+procler export systemd --all    # Generate systemd units
+procler export compose          # Generate docker-compose.yml
 ```
 
 ---
@@ -432,3 +526,5 @@ docker run -d -p 8000:8000 -v procler-data:/home/procler/.procler procler
 6. **Monitor Linux state** - D and Z states require special handling
 7. **Use groups for complex startups** - Dependencies are resolved automatically
 8. **Clear logs on restart** - Use `--clear-logs` when debugging fresh starts
+9. **Use namespaces** - Filter processes with `--namespace` for large setups
+10. **Export for production** - Use `export` commands to generate deployment configs

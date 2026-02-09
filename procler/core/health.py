@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import socket
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -116,7 +117,6 @@ class HealthChecker:
         """Main health check loop for a process."""
         start_period = healthcheck.get_start_period_seconds()
         interval = healthcheck.get_interval_seconds()
-        timeout = healthcheck.get_timeout_seconds()
         retries = healthcheck.retries
 
         # Wait for start period
@@ -129,11 +129,8 @@ class HealthChecker:
 
         while True:
             try:
-                # Run the health check command
-                result = await self._local_context.exec_command(
-                    healthcheck.test,
-                    timeout=timeout,
-                )
+                # Run the health check (command, HTTP, or TCP)
+                success, stdout, error = await self._run_check(healthcheck)
 
                 state = self._health_states.get(process_name)
                 if not state:
@@ -143,7 +140,7 @@ class HealthChecker:
                 state.check_count += 1
                 old_status = state.status
 
-                if result.exit_code == 0:
+                if success:
                     # Health check passed
                     state.consecutive_failures = 0
                     state.last_error = None
@@ -151,7 +148,7 @@ class HealthChecker:
                 else:
                     # Health check failed
                     state.consecutive_failures += 1
-                    state.last_error = result.stderr or f"Exit code: {result.exit_code}"
+                    state.last_error = error
 
                     if state.consecutive_failures >= retries:
                         state.status = HealthStatus.UNHEALTHY
@@ -180,6 +177,70 @@ class HealthChecker:
             except Exception:
                 pass  # Don't let callback errors break health checking
 
+    async def _check_http(self, url: str, timeout: float) -> tuple[bool, str]:
+        """Perform an HTTP GET health check. Returns (success, error_message)."""
+        try:
+            from urllib.request import Request, urlopen
+
+            req = Request(url, method="GET")
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: urlopen(req, timeout=timeout),  # noqa: S310
+            )
+            status = response.getcode()
+            if 200 <= status < 400:
+                return True, ""
+            return False, f"HTTP {status}"
+        except Exception as e:
+            return False, str(e)
+
+    async def _check_tcp(self, address: str, timeout: float) -> tuple[bool, str]:
+        """Perform a TCP socket health check. Returns (success, error_message)."""
+        try:
+            # Parse host:port
+            if ":" in address:
+                parts = address.rsplit(":", 1)
+                host = parts[0]
+                port = int(parts[1])
+            else:
+                return False, f"Invalid TCP address (missing port): {address}"
+
+            loop = asyncio.get_running_loop()
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            try:
+                await loop.run_in_executor(None, lambda: sock.connect((host, port)))
+                return True, ""
+            except (ConnectionRefusedError, TimeoutError, OSError) as e:
+                return False, str(e)
+            finally:
+                sock.close()
+        except Exception as e:
+            return False, str(e)
+
+    async def _run_check(self, healthcheck: HealthCheckDef) -> tuple[bool, str, str]:
+        """Run a health check using the appropriate probe type.
+
+        Returns (success, stdout_or_empty, stderr_or_error).
+        """
+        timeout = healthcheck.get_timeout_seconds()
+
+        if healthcheck.http_get:
+            success, error = await self._check_http(healthcheck.http_get, timeout)
+            return success, "", error
+
+        if healthcheck.tcp_socket:
+            success, error = await self._check_tcp(healthcheck.tcp_socket, timeout)
+            return success, "", error
+
+        # Default: command probe
+        if healthcheck.test:
+            result = await self._local_context.exec_command(healthcheck.test, timeout=timeout)
+            return result.exit_code == 0, result.stdout, result.stderr or f"Exit code: {result.exit_code}"
+
+        return False, "", "No probe type configured"
+
     async def run_single_check(
         self,
         process_name: str,
@@ -190,18 +251,13 @@ class HealthChecker:
 
         Useful for manual health check triggers.
         """
-        timeout = healthcheck.get_timeout_seconds()
-
-        result = await self._local_context.exec_command(
-            healthcheck.test,
-            timeout=timeout,
-        )
+        success, stdout, stderr = await self._run_check(healthcheck)
 
         return {
-            "success": result.exit_code == 0,
-            "exit_code": result.exit_code,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
+            "success": success,
+            "exit_code": 0 if success else 1,
+            "stdout": stdout,
+            "stderr": stderr,
             "timestamp": datetime.now().isoformat(),
         }
 

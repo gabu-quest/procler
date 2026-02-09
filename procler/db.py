@@ -14,15 +14,13 @@ logger = logging.getLogger(__name__)
 _db: SQLerDB | None = None
 
 # Current schema version - increment when making breaking changes
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _get_schema_version(db: SQLerDB) -> int:
     """Get the current schema version from database metadata."""
     try:
-        result = db.execute_sql(
-            "SELECT value FROM procler_meta WHERE key = 'schema_version'"
-        )
+        result = db.execute_sql("SELECT value FROM procler_meta WHERE key = 'schema_version'")
         if result and len(result) > 0:
             return int(result[0].get("value", 0))
         return 0
@@ -39,18 +37,18 @@ def _set_schema_version(db: SQLerDB, version: int) -> None:
             value TEXT
         )
     """)
-    db.execute_sql(
-        f"INSERT OR REPLACE INTO procler_meta (key, value) VALUES ('schema_version', '{version}')"
-    )
+    db.execute_sql(f"INSERT OR REPLACE INTO procler_meta (key, value) VALUES ('schema_version', '{version}')")
 
 
 def _run_migrations(db: SQLerDB, from_version: int, to_version: int) -> None:
     """Run any necessary migrations between versions."""
-    # Future migrations would go here
-    # Example:
-    # if from_version < 2 and to_version >= 2:
-    #     db._conn.execute("ALTER TABLE processes ADD COLUMN new_field TEXT")
-    pass
+    if from_version < 2 <= to_version:
+        # Add namespace column to Process table
+        try:
+            db.execute_sql("ALTER TABLE process ADD COLUMN namespace TEXT DEFAULT 'default'")
+            logger.info("Migration v2: Added namespace column to process table")
+        except Exception:
+            pass  # Column may already exist (fresh DB)
 
 
 def init_database(db_path: Path | None = None) -> SQLerDB:

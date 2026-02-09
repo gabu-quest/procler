@@ -7,6 +7,38 @@ from enum import Enum
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
+def parse_memory_string(value: str) -> int:
+    """Parse a memory string like '512M', '1G', '256K' to bytes.
+
+    Supports: B, K/KB, M/MB, G/GB (case-insensitive).
+    Returns bytes as an integer.
+    """
+    value = value.strip().upper()
+    multipliers = {
+        "B": 1,
+        "K": 1024,
+        "KB": 1024,
+        "M": 1024 * 1024,
+        "MB": 1024 * 1024,
+        "G": 1024 * 1024 * 1024,
+        "GB": 1024 * 1024 * 1024,
+    }
+
+    for suffix, multiplier in sorted(multipliers.items(), key=lambda x: -len(x[0])):
+        if value.endswith(suffix):
+            num_str = value[: -len(suffix)].strip()
+            try:
+                return int(float(num_str) * multiplier)
+            except ValueError:
+                raise ValueError(f"Invalid memory value: {value}")
+
+    # Try as raw bytes
+    try:
+        return int(value)
+    except ValueError:
+        raise ValueError(f"Invalid memory format: {value}. Use format like '512M', '1G', '256K'")
+
+
 class ContextType(str, Enum):
     """Execution context type."""
 
@@ -22,13 +54,29 @@ class OnErrorAction(str, Enum):
 
 
 class HealthCheckDef(BaseModel):
-    """Health check definition for a process."""
+    """Health check definition for a process.
 
-    test: str  # Command to run, e.g., "curl -f http://localhost:8000/health"
+    Exactly one of test, http_get, or tcp_socket must be specified.
+    """
+
+    test: str | None = None  # Command to run, e.g., "curl -f http://localhost:8000/health"
+    http_get: str | None = None  # HTTP GET URL, e.g., "http://localhost:8000/health"
+    tcp_socket: str | None = None  # TCP address, e.g., "localhost:5432"
     interval: str = "10s"  # Time between checks
     timeout: str = "5s"  # How long to wait for check to complete
     retries: int = 3  # Number of consecutive failures before unhealthy
     start_period: str = "0s"  # Grace period before checks start
+
+    @model_validator(mode="after")
+    def validate_probe_type(self):
+        """Ensure exactly one probe type is specified."""
+        probes = [self.test, self.http_get, self.tcp_socket]
+        specified = sum(1 for p in probes if p is not None)
+        if specified == 0:
+            raise ValueError("Health check must specify one of: test, http_get, or tcp_socket")
+        if specified > 1:
+            raise ValueError("Health check must specify only one of: test, http_get, or tcp_socket")
+        return self
 
     def get_interval_seconds(self) -> float:
         """Parse interval to seconds."""
@@ -60,6 +108,7 @@ class DependencyCondition(str, Enum):
 
     STARTED = "started"  # Just needs to be running
     HEALTHY = "healthy"  # Must pass health check
+    LOG_READY = "log_ready"  # Must match ready_log_line regex in stdout
 
 
 class DependencyDef(BaseModel):
@@ -80,6 +129,21 @@ class ProcessDef(BaseModel):
     description: str | None = None
     healthcheck: HealthCheckDef | None = None
     depends_on: list[str | DependencyDef] = Field(default_factory=list)
+
+    # Ready detection via log line (regex pattern matched against stdout/stderr)
+    ready_log_line: str | None = None
+
+    # Memory threshold for auto-restart (e.g., "512M", "1G", "256K")
+    max_memory: str | None = None
+
+    # Cron schedule (e.g., "0 */6 * * *" for every 6 hours)
+    schedule: str | None = None
+
+    # Number of instances to run (e.g., 3 creates worker-1, worker-2, worker-3)
+    replicas: int = 1
+
+    # Namespace for multi-project isolation (default: "default")
+    namespace: str = "default"
 
     # Daemon mode configuration
     daemon_mode: bool = False
@@ -313,3 +377,39 @@ class ProclerConfig(BaseModel):
                 errors.append(f"Snippet '{name}' has docker context but no container specified")
 
         return errors
+
+    def expand_replicas(self) -> dict[str, ProcessDef]:
+        """Expand processes with replicas > 1 into individual instances.
+
+        Returns a new dict with replica instances named like 'worker-1', 'worker-2', etc.
+        Processes with replicas=1 are included as-is.
+
+        Each replica gets its own copy of the ProcessDef with:
+        - replicas set back to 1
+        - A tag 'replica:{original_name}' added for grouping
+        """
+        expanded = {}
+        for name, proc_def in self.processes.items():
+            if proc_def.replicas <= 1:
+                expanded[name] = proc_def
+            else:
+                for i in range(1, proc_def.replicas + 1):
+                    replica_name = f"{name}-{i}"
+                    # Create a copy with replicas=1 and replica tag
+                    replica_data = proc_def.model_dump()
+                    replica_data["replicas"] = 1
+                    replica_tags = list(proc_def.tags) + [f"replica:{name}"]
+                    replica_data["tags"] = replica_tags
+                    expanded[replica_name] = ProcessDef(**replica_data)
+        return expanded
+
+    def get_replica_names(self, base_name: str) -> list[str]:
+        """Get all replica instance names for a process.
+
+        If the process has replicas > 1, returns ['name-1', 'name-2', ...].
+        Otherwise returns ['name'].
+        """
+        proc_def = self.processes.get(base_name)
+        if not proc_def or proc_def.replicas <= 1:
+            return [base_name]
+        return [f"{base_name}-{i}" for i in range(1, proc_def.replicas + 1)]

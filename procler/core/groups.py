@@ -110,7 +110,7 @@ class GroupManager:
 
             proc_def = config.processes[proc_name]
 
-            # Check dependencies before starting
+            # Check dependencies before starting (applies to all replicas)
             if respect_dependencies and proc_def.depends_on:
                 dep_result = await self._wait_for_dependencies(proc_name, proc_def, config, dependency_timeout)
                 if not dep_result["success"]:
@@ -125,28 +125,48 @@ class GroupManager:
                     all_success = False
                     continue
 
-            # Ensure process exists in runtime DB
-            await self._ensure_process_in_db(proc_name, proc_def)
+            # Expand replicas: if replicas > 1, start each instance
+            replica_names = config.get_replica_names(proc_name)
 
-            # Start the process
-            result = await self._process_manager.start(proc_name)
+            for instance_name in replica_names:
+                # Ensure process exists in runtime DB
+                await self._ensure_process_in_db(instance_name, proc_def)
 
-            # Start health checking if configured
-            if proc_def.healthcheck:
-                self._health_checker.register_process(proc_name, proc_def.healthcheck)
-                asyncio.create_task(self._health_checker.start_checking(proc_name, proc_def.healthcheck))
+                # Register ready_log_line pattern before starting (so log callback can match)
+                if proc_def.ready_log_line:
+                    from sqler.query import SQLerField as F
 
-            results.append(
-                {
-                    "process": proc_name,
-                    "success": result["success"],
-                    "status": result.get("data", {}).get("status"),
-                    "error": result.get("error"),
-                }
-            )
+                    from ..models import Process
 
-            if not result["success"]:
-                all_success = False
+                    proc_results = Process.query().filter(F("name") == instance_name).all()
+                    if proc_results:
+                        self._process_manager.register_ready_pattern(proc_results[0]._id, proc_def.ready_log_line)
+
+                # Inject PROCLER_REPLICA_INDEX for replicas
+                if proc_def.replicas > 1:
+                    # Extract index from name (e.g., "worker-2" -> 2)
+                    replica_index = instance_name.rsplit("-", 1)[-1]
+                    self._set_replica_env(instance_name, replica_index)
+
+                # Start the process
+                result = await self._process_manager.start(instance_name)
+
+                # Start health checking if configured
+                if proc_def.healthcheck:
+                    self._health_checker.register_process(instance_name, proc_def.healthcheck)
+                    asyncio.create_task(self._health_checker.start_checking(instance_name, proc_def.healthcheck))
+
+                results.append(
+                    {
+                        "process": instance_name,
+                        "success": result["success"],
+                        "status": result.get("data", {}).get("status"),
+                        "error": result.get("error"),
+                    }
+                )
+
+                if not result["success"]:
+                    all_success = False
 
         return {
             "success": all_success,
@@ -229,6 +249,29 @@ class GroupManager:
                     )
                     continue
 
+            # If condition is 'log_ready', wait for ready_log_line match
+            elif dep.condition == DependencyCondition.LOG_READY:
+                if not dep_def.ready_log_line:
+                    failures.append(
+                        {
+                            "dependency": dep_name,
+                            "error": "Dependency requires log_ready condition but has no ready_log_line",
+                        }
+                    )
+                    continue
+
+                # Wait for log_ready with polling
+                is_ready = await self._wait_for_log_ready(dep_name, timeout)
+                if not is_ready:
+                    failures.append(
+                        {
+                            "dependency": dep_name,
+                            "error": f"Dependency log_ready not matched after {timeout}s",
+                            "condition": "log_ready",
+                        }
+                    )
+                    continue
+
         if failures:
             return {
                 "success": False,
@@ -270,25 +313,29 @@ class GroupManager:
                 all_success = False
                 continue
 
-            # Stop health checking first
-            await self._health_checker.stop_checking(proc_name)
+            proc_def = config.processes[proc_name]
+            replica_names = config.get_replica_names(proc_name)
 
-            # Ensure process exists in runtime DB
-            await self._ensure_process_in_db(proc_name, config.processes[proc_name])
+            for instance_name in replica_names:
+                # Stop health checking first
+                await self._health_checker.stop_checking(instance_name)
 
-            # Stop the process
-            result = await self._process_manager.stop(proc_name)
-            results.append(
-                {
-                    "process": proc_name,
-                    "success": result["success"],
-                    "status": result.get("data", {}).get("status"),
-                    "error": result.get("error"),
-                }
-            )
+                # Ensure process exists in runtime DB
+                await self._ensure_process_in_db(instance_name, proc_def)
 
-            if not result["success"]:
-                all_success = False
+                # Stop the process
+                result = await self._process_manager.stop(instance_name)
+                results.append(
+                    {
+                        "process": instance_name,
+                        "success": result["success"],
+                        "status": result.get("data", {}).get("status"),
+                        "error": result.get("error"),
+                    }
+                )
+
+                if not result["success"]:
+                    all_success = False
 
         return {
             "success": all_success,
@@ -370,6 +417,53 @@ class GroupManager:
             },
         }
 
+    def _set_replica_env(self, instance_name: str, replica_index: str) -> None:
+        """Set PROCLER_REPLICA_INDEX env var on a process in the DB."""
+        from sqler.query import SQLerField as F
+
+        from ..models import Process
+
+        results = Process.query().filter(F("name") == instance_name).all()
+        if results:
+            proc = results[0]
+            env = proc.env or {}
+            env["PROCLER_REPLICA_INDEX"] = replica_index
+            proc.env = env
+            proc.save()
+
+    async def _wait_for_log_ready(self, process_name: str, timeout: float) -> bool:
+        """Wait for a process to emit its ready_log_line pattern."""
+        from datetime import datetime
+
+        from sqler.query import SQLerField as F
+
+        from ..models import Process
+
+        # Find the process to get its ID
+        results = Process.query().filter(F("name") == process_name).all()
+        if not results:
+            return False
+
+        process_id = results[0]._id
+        start = datetime.now()
+
+        while True:
+            elapsed = (datetime.now() - start).total_seconds()
+            if elapsed >= timeout:
+                return False
+
+            if self._process_manager.is_process_ready(process_id):
+                return True
+
+            # Check if process is still running
+            status_result = await self._process_manager.status(process_name)
+            if status_result.get("success"):
+                proc_status = status_result.get("data", {}).get("process", {}).get("status")
+                if proc_status not in ("running", "starting"):
+                    return False
+
+            await asyncio.sleep(0.2)
+
     async def _ensure_process_in_db(self, name: str, proc_def) -> None:
         """Ensure a process from config exists in the runtime database."""
         from datetime import datetime
@@ -388,6 +482,7 @@ class GroupManager:
 
         # Create from config definition
         tags = proc_def.tags if proc_def.tags else None
+        namespace = getattr(proc_def, "namespace", "default")
         process = Process(
             name=name,
             command=proc_def.command,
@@ -395,6 +490,7 @@ class GroupManager:
             container_name=proc_def.container,
             cwd=proc_def.cwd,
             tags=tags,
+            namespace=namespace,
             created_at=datetime.now().isoformat(),
             updated_at=datetime.now().isoformat(),
         )

@@ -30,6 +30,7 @@ from .schema import (
     RecipeStepStop,
     RecipeStepWait,
     SnippetDef,
+    parse_memory_string,
 )
 
 __all__ = [
@@ -62,4 +63,5 @@ __all__ = [
     "append_changelog",
     "read_changelog",
     "ChangelogAction",
+    "parse_memory_string",
 ]

@@ -4,7 +4,7 @@ import pytest
 
 from procler import db
 from procler.config import loader as config_loader
-from procler.core import context_local, events, groups, health, process_manager, recipes, snippets
+from procler.core import context_local, events, groups, health, process_manager, recipes, scheduler, snippets
 
 
 @pytest.fixture(autouse=True)
@@ -19,6 +19,7 @@ def reset_state(tmp_path):
     recipes._recipe_executor = None
     health.reset_health_checker()
     events.reset_event_bus()
+    scheduler.reset_scheduler()
     config_loader.reset_config_cache()
 
     # Use a temporary database for this test
@@ -36,6 +37,7 @@ def reset_state(tmp_path):
     recipes._recipe_executor = None
     health.reset_health_checker()
     events.reset_event_bus()
+    scheduler.reset_scheduler()
     config_loader.reset_config_cache()
 
 
