@@ -86,8 +86,6 @@ exclude = [
     "/the-style-main.zip",
     "/CLAUDE.md",
     "/CLAUDE.local.md",
-
-    "/procler-roadmap.md",
 ]
 
 [tool.hatch.build.targets.wheel]

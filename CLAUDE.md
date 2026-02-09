@@ -6,30 +6,14 @@
 
 ## What This Is
 
-Procler provides a unified interface for managing development processes across local shells and Docker containers. It's designed with Claude Code as a first-class citizen - all CLI output is JSON-native for programmatic use.
+Procler provides a unified interface for managing development processes across local shells and Docker containers. All CLI output is JSON-native for programmatic use.
 
-**Key LLM-friendly features:**
-- All output is structured JSON with consistent `{success, data?, error?, error_code?, suggestion?}` format
-- `procler capabilities` returns full command schema for discovery
-- `procler config explain` describes config in plain language
-- Per-project version-controllable configuration
+**Discovery commands:**
+- `procler capabilities` - Full command schema (use this to discover commands)
+- `procler config explain` - Plain-language config explanation
+- `procler help-llm` - Comprehensive LLM-focused usage guide
 
----
-
-## Quick Start for Claude
-
-```bash
-# Discover all commands
-procler capabilities
-
-# Understand current config
-procler config explain
-
-# Common workflows
-procler group start backend     # Start dev environment
-procler recipe run deploy       # Execute multi-step operation
-procler status                  # Check all processes
-```
+For full CLI reference, REST API docs, and user-facing documentation, see `README.md`.
 
 ---
 
@@ -62,29 +46,25 @@ procler/
 │   │   ├── scheduler.py        # Cron/scheduled process execution
 │   │   ├── export.py           # Export to systemd/Docker Compose
 │   │   └── import_procfile.py  # Procfile format importer
-│   └── api/                    # FastAPI application
-│       ├── app.py              # App factory
-│       ├── deps.py             # Dependency injection
-│       └── routes/
-│           ├── processes.py    # Process CRUD & control
-│           ├── groups.py       # Group operations
-│           ├── recipes.py      # Recipe execution
-│           ├── config.py       # Config management
-│           ├── logs.py         # Log retrieval
-│           ├── snippets.py     # Snippet CRUD & run
-│           └── ws.py           # WebSocket real-time
-├── frontend/                   # Vue 3 dashboard
-│   ├── src/
-│   │   ├── views/              # Dashboard, Processes, Groups, Recipes, Snippets, Config
-│   │   ├── stores/             # Pinia state management
-│   │   ├── composables/        # useWebSocket, useKeyboardShortcuts, useProcessNotifications
-│   │   ├── components/         # AppLayout, Breadcrumbs, KeyboardShortcutsHelp
-│   │   └── ...
-│   └── package.json
-├── procler/tui/                # Terminal UI (Textual)
-│   ├── __init__.py
-│   └── app.py                  # TUI app with process list, log viewer
-└── tests/                      # pytest tests (320+ tests)
+│   ├── api/                    # FastAPI application
+│   │   ├── app.py              # App factory
+│   │   ├── deps.py             # Dependency injection
+│   │   └── routes/
+│   │       ├── processes.py    # Process CRUD & control
+│   │       ├── groups.py       # Group operations
+│   │       ├── recipes.py      # Recipe execution
+│   │       ├── config.py       # Config management
+│   │       ├── logs.py         # Log retrieval
+│   │       ├── snippets.py     # Snippet CRUD & run
+│   │       └── ws.py           # WebSocket real-time
+│   └── tui/                    # Terminal UI (Textual, optional extra)
+│       └── app.py              # TUI app with process list, log viewer
+├── frontend/                   # Vue 3 dashboard (Naive UI, Cyberpunk theme)
+│   └── src/                    # views/, stores/, composables/, components/
+├── tests/                      # pytest tests (320+)
+└── scripts/
+    ├── build_frontend.sh       # Build Vue to procler/static/
+    └── record-demos.sh         # Terminal demo recordings (asciinema + agg)
 ```
 
 ---
@@ -94,432 +74,65 @@ procler/
 - **Backend:** Python 3.12+, FastAPI, Click CLI
 - **Database:** SQLite via [sqler](https://pypi.org/project/sqler/) (JSON-first micro-ORM)
 - **Config:** YAML with Pydantic validation
-- **Frontend:** Vue 3, Vite, Pinia, Naive UI (Cyberpunk theme)
-- **Docker:** docker-py SDK for container operations
+- **Frontend:** Vue 3, Vite, Pinia, Naive UI
+- **TUI:** Textual (optional `procler[tui]` extra)
+- **Docker:** docker-py SDK
+- **Scheduling:** croniter
 - **Real-time:** WebSockets (native FastAPI)
 
 ---
 
-## Key Design Principles
+## Architecture
 
-1. **JSON-native CLI** - All commands return structured JSON, never human-formatted tables
-2. **Idempotent operations** - Safe to retry; `start` on running process returns current state
-3. **Dual interface parity** - CLI and Web UI share the same ProcessManager core
-4. **Context abstraction** - Local and Docker execution are pluggable contexts
+```
+CLI (Click) ──┐
+Web UI (Vue) ──┤── FastAPI /api/... ── ProcessManager ──┬── LocalContext (subprocess)
+TUI (Textual) ┘                       + Groups          ├── DockerContext (docker SDK)
+                                      + Recipes          └── sqler Database
+                                      + Health
+                                      + Scheduler
+```
+
+Key: ProcessManager is the single source of truth. All interfaces share it.
+
+---
+
+## Design Principles
+
+1. **JSON-native CLI** - All commands return `{success, data?, error?, error_code?, suggestion?}`
+2. **Idempotent operations** - `start` on running = no-op, `stop` on stopped = no-op
+3. **Dual interface parity** - CLI and Web UI share the same core
+4. **Context abstraction** - Local and Docker are pluggable ExecutionContexts
 5. **Version-controllable config** - `.procler/config.yaml` is committed to git
-6. **Audit trail** - All operations logged to `.procler/changelog.log`
 
 ---
 
-## Configuration System
+## Configuration
 
-Procler uses a per-project `.procler/` directory:
+Per-project `.procler/` directory. Discovery: `$PROCLER_CONFIG_DIR` > `.procler.env` > `.procler/` > git root > `~/.procler/`
 
-```
-.procler/
-├── config.yaml    # Definitions (commit to git)
-├── changelog.log  # Audit trail (commit to git)
-└── state.db       # Runtime state (auto-gitignored)
-```
+Config supports: processes (with healthchecks, replicas, namespaces, schedules, memory thresholds), groups, recipes, snippets, and variable substitution (`vars:` + `${VAR}`).
 
-**Discovery order:** `$PROCLER_CONFIG_DIR` → `.procler.env` → `.procler/` → git root → `~/.procler/`
-
-### Config Schema
-
-```yaml
-version: 1
-
-processes:
-  api:
-    command: uvicorn main:app --reload
-    context: local  # or docker
-    container: my-container  # required if docker
-    cwd: /path/to/project
-    tags: [backend, api]
-    description: "API server"
-    namespace: backend            # Namespace isolation (default: "default")
-    ready_log_line: "Uvicorn running on"  # Regex for log_ready condition
-    max_memory: 512M              # Auto-restart on memory threshold
-    healthcheck:                  # Optional health monitoring
-      http_get: "http://localhost:8000/health"  # HTTP probe (or test: / tcp_socket:)
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-
-  worker:
-    command: celery worker
-    replicas: 3                   # Start 3 instances (worker-1, worker-2, worker-3)
-    depends_on:                   # Start dependencies
-      - redis                     # Simple: wait for 'started'
-      - name: api
-        condition: log_ready      # Wait for ready_log_line match
-      - name: db
-        condition: healthy        # Wait for health check to pass
-
-  cleanup:
-    command: python scripts/cleanup.py
-    schedule: "0 */6 * * *"       # Cron expression
-
-groups:
-  backend:
-    description: "Full backend stack"
-    processes: [redis, api, worker]  # Start order
-    stop_order: [worker, api, redis]  # Optional, defaults to reversed
-
-recipes:
-  deploy:
-    description: "Graceful deployment"
-    on_error: stop  # or continue
-    steps:
-      - stop: worker
-      - stop: api
-      - wait: 2s
-      - exec: "alembic upgrade head"
-        context: docker
-        container: my-container
-      - start: api
-      - start: worker
-
-snippets:
-  rebuild:
-    command: docker compose build
-    description: "Rebuild containers"
-    tags: [docker]
-```
+See `procler/config/schema.py` for the Pydantic models, or run `procler config explain` for a plain-language description.
 
 ---
 
-## CLI Commands
+## Security Notes
 
-All commands output JSON. Exit code 0 on success, non-zero on failure.
-
-### Discovery & Config
-```bash
-procler capabilities          # Full command schema (LLM discovery)
-procler config init           # Create .procler/ with template
-procler config validate       # Validate config.yaml
-procler config explain        # Plain-language explanation
-procler config path           # Show resolved paths
-```
-
-### Process Management
-```bash
-procler define --name <NAME> --command <CMD> [--context local|docker] [--container <CONTAINER>]
-procler start <NAME>          # Idempotent
-procler stop <NAME>           # Idempotent
-procler restart <NAME>
-procler status [NAME]
-procler list [--namespace NS]
-procler remove <NAME>
-procler logs <NAME> --tail 100 --since 5m
-procler exec "command" [--context docker --container <CONTAINER>]
-```
-
-### Groups (Ordered Start/Stop)
-```bash
-procler group list
-procler group start <NAME>    # Start processes in order
-procler group stop <NAME>     # Stop in reverse order
-procler group status <NAME>
-```
-
-### Recipes (Multi-Step Operations)
-```bash
-procler recipe list
-procler recipe show <NAME>
-procler recipe run <NAME> --dry-run     # Preview
-procler recipe run <NAME>               # Execute
-procler recipe run <NAME> --continue-on-error
-```
-
-### Snippets
-```bash
-procler snippet list [--tag TAG]
-procler snippet save --name <NAME> --command <CMD>
-procler snippet run <NAME>
-procler snippet remove <NAME>
-```
-
-### Export
-```bash
-procler export systemd <NAME>     # Export as systemd .service unit
-procler export systemd --all      # Export all local processes
-procler export compose            # Export as docker-compose.yml
-```
-
-### Import
-```bash
-procler import procfile <PATH>            # Import from Procfile
-procler import procfile <PATH> --dry-run  # Preview without writing
-procler import procfile <PATH> --merge    # Merge into existing config
-```
-
-### TUI
-```bash
-procler tui                       # Launch Terminal UI (requires procler[tui])
-```
-
-### Server
-```bash
-procler serve [--host 127.0.0.1] [--port 8000] [--reload]
-```
-
----
-
-## REST API
-
-Base URL: `http://localhost:8000/api`
-
-### Processes
-```
-GET    /api/processes              # List all
-GET    /api/processes/{name}       # Get one
-POST   /api/processes              # Create
-DELETE /api/processes/{name}       # Remove
-POST   /api/processes/{name}/start
-POST   /api/processes/{name}/stop
-POST   /api/processes/{name}/restart
-GET    /api/logs/{name}?tail=100&since=5m
-```
-
-### Groups
-```
-GET    /api/groups                 # List all
-GET    /api/groups/{name}          # Get one
-GET    /api/groups/{name}/status   # Status of all processes
-POST   /api/groups/{name}/start    # Start in order
-POST   /api/groups/{name}/stop     # Stop in reverse order
-```
-
-### Recipes
-```
-GET    /api/recipes                # List all
-GET    /api/recipes/{name}         # Get details
-POST   /api/recipes/{name}/run     # Execute (body: {dry_run?, continue_on_error?})
-POST   /api/recipes/{name}/dry-run # Preview only
-```
-
-### Config
-```
-GET    /api/config                 # Status and stats
-GET    /api/config/processes       # List config-defined processes
-GET    /api/config/changelog?format=parsed&tail=50
-GET    /api/config/explain         # Plain-language explanation
-POST   /api/config/reload          # Reload from disk
-GET    /api/config/export/{format} # Export (systemd, compose)
-```
-
-### Snippets
-```
-GET    /api/snippets[?tag=TAG]
-POST   /api/snippets
-GET    /api/snippets/{name}
-DELETE /api/snippets/{name}
-POST   /api/snippets/{name}/run
-```
-
-### Health
-```
-GET    /api/health                 # {"status": "healthy", "version": "..."}
-```
-
----
-
-## Linux Process States
-
-Process status includes Linux kernel state from `/proc/[pid]/stat`:
-
-| Code | Name | Description |
-|------|------|-------------|
-| R | running | Running or on run queue |
-| S | sleeping | Interruptible sleep (normal) |
-| D | disk_sleep | **Uninterruptible sleep - CANNOT BE KILLED** |
-| Z | zombie | Terminated but not reaped by parent |
-| T | stopped | Stopped by job control signal |
-| t | tracing_stop | Stopped by debugger |
-
-Status output includes warnings for problematic states:
-```json
-{
-  "linux_state": {
-    "state_code": "D",
-    "state_name": "disk_sleep",
-    "state_description": "Uninterruptible sleep (usually I/O) - CANNOT BE KILLED",
-    "is_killable": false
-  },
-  "warning": "Process in D state cannot be killed - typically waiting on I/O"
-}
-```
-
----
-
-## Health Checks & Dependencies
-
-### Health Check Config
-
-Three probe types (use exactly one):
-
-```yaml
-healthcheck:
-  test: "curl -f http://localhost:8000/health"  # Command probe
-  # OR
-  http_get: "http://localhost:8000/health"      # HTTP GET probe (built-in, no curl)
-  # OR
-  tcp_socket: "localhost:5432"                  # TCP socket probe (built-in)
-  interval: 10s       # How often to check
-  timeout: 5s         # Max time for check
-  retries: 3          # Failures before 'unhealthy'
-  start_period: 30s   # Grace period after start
-```
-
-### Dependency Conditions
-```yaml
-depends_on:
-  - redis                      # condition: started (default)
-  - name: api
-    condition: healthy         # Wait for health check pass
-  - name: db
-    condition: log_ready       # Wait for ready_log_line regex match
-```
-
-When starting a group, processes wait for their dependencies:
-- `started`: Dependency process is running
-- `healthy`: Dependency passes health check
-
----
-
-## WebSocket Protocol
-
-Connect to `ws://localhost:8000/api/ws`
-
-### Client -> Server
-```json
-{"action": "subscribe_logs", "process_id": 1}
-{"action": "unsubscribe_logs", "process_id": 1}
-{"action": "subscribe_status", "process_id": 1}
-{"action": "subscribe_status"}  // all processes
-{"action": "unsubscribe_status", "process_id": 1}
-{"action": "ping"}
-```
-
-### Server -> Client
-```json
-{"type": "log", "process_id": 1, "data": {"timestamp": "...", "stream": "stdout", "line": "..."}}
-{"type": "status", "process_id": 1, "data": {"status": "running", "pid": 12345}}
-{"type": "subscribed", "action": "subscribe_logs", "process_id": 1}
-{"type": "pong"}
-{"type": "error", "message": "..."}
-```
-
----
-
-## Production Deployment
-
-### Docker
-
-```bash
-# Build and run
-docker compose up -d
-
-# Or build manually
-docker build -t procler .
-docker run -d -p 8000:8000 -v procler-data:/home/procler/.procler procler
-```
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PROCLER_LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
-| `PROCLER_LOG_FILE` | - | File path for logs (auto-rotates) |
-| `PROCLER_LOG_ROTATION_INTERVAL` | `3600` | Seconds between log rotation checks |
-| `PROCLER_MAX_LOGS_PER_PROCESS` | `10000` | Max log entries per process |
-| `PROCLER_CONFIG_DIR` | `.procler/` | Config directory path |
-| `PROCLER_DB_PATH` | `.procler/state.db` | Database path |
-| `PROCLER_CORS_ORIGINS` | `localhost` | Comma-separated allowed origins |
-| `PROCLER_DEBUG` | - | Set to 1 for detailed errors |
-
-### Production Features
-
-- **Process Recovery**: On startup, checks for orphaned processes and updates their status
-- **Graceful Shutdown**: SIGTERM/SIGINT triggers orderly process shutdown
-- **Auto Log Rotation**: Background task rotates logs every hour (configurable)
-- **Structured Logging**: Uses loguru with configurable levels and file output
-- **Database Schema Versioning**: Automatic migrations with version tracking
-
-### Security Hardening
-
-- **Command Injection Prevention**: All shell commands use `shlex.quote()` for user inputs
-- **Path Traversal Validation**: Pidfile and log paths are validated to prevent directory traversal
-- **Container Name Validation**: Docker container names are validated against safe patterns
-- **Thread-Safe Process Handles**: `asyncio.Lock()` protects concurrent access to process handles
-- **Resource Cleanup**: Try/finally patterns ensure proper cleanup of subprocesses and streams
-- **Timeout Protection**: Stream readers have configurable timeouts to prevent hangs
-
----
-
-## Frontend
-
-The Vue 3 dashboard provides:
-
-| View | Purpose |
-|------|---------|
-| Dashboard | Overview with stats, quick actions, recent activity |
-| Processes | Process list with CRUD, status indicators, per-action loading states |
-| Process Detail | Live logs with search/filter, stream filtering, breadcrumbs navigation |
-| Groups | Card-based view, one-click start/stop all |
-| Recipes | Step preview, dry-run, execution progress |
-| Snippets | Reusable command management with delete confirmations |
-| Config | Status, stats, changelog viewer |
-
-### UX Features
-
-- **Keyboard Shortcuts** - Press `?` to show help. Navigation: `g d` (Dashboard), `g p` (Processes), `g g` (Groups), `g r` (Recipes), `g s` (Snippets), `g c` (Config)
-- **WebSocket Status** - Header shows connection status with reconnect info
-- **Toast Notifications** - Automatic notifications when process status changes
-- **Log Search/Filter** - Filter logs by text (with highlighting) and stream (stdout/stderr)
-- **Breadcrumbs** - Navigation context on detail pages
-- **Confirmations** - Delete/remove actions require confirmation
-- **Loading States** - Per-action loading indicators on buttons
-- **ARIA Labels** - Accessibility support for icon-only buttons
-
-### Running Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev      # Development at :5173 (proxies /api to :8000)
-npm run build    # Production build
-```
-
-### Production
-
-```bash
-./scripts/build_frontend.sh      # Build to procler/static/
-procler serve --host 0.0.0.0     # Serves both API and frontend
-```
-
-Environment variables:
-- `PROCLER_CORS_ORIGINS` - Comma-separated allowed origins
-- `PROCLER_DEBUG` - Show detailed errors
+- All shell commands use `shlex.quote()` for user inputs
+- Path traversal validation on pidfile and log paths
+- Docker container names validated against safe patterns
+- `asyncio.Lock()` on concurrent process handle access
+- Try/finally cleanup for subprocesses and streams
 
 ---
 
 ## Development
 
 ```bash
-# Install
-uv sync --all-extras
-
-# Run CLI
-uv run python -m procler --help
-
-# Run tests (320+ tests)
-uv run pytest tests/ -v
-
-# Dev server
-uv run python -m procler serve --reload
+uv sync --all-extras          # Install
+uv run pytest tests/ -v       # Run tests (320+)
+uv run python -m procler serve --reload  # Dev server
 ```
 
 ---
@@ -527,40 +140,9 @@ uv run python -m procler serve --reload
 ## Working in This Repo
 
 - All CLI output MUST be valid JSON
-- Tests use pytest with pytest-asyncio
+- Tests use pytest with pytest-asyncio (`asyncio_mode = "auto"`)
 - Follow existing patterns in the codebase
-- Keep the repo healthy - incremental commits, tests alongside changes
-- Use `uv` for dependency management
-- Run tests before committing: `uv run pytest tests/ -v`
-- Config changes should be in `.procler/config.yaml`, not runtime DB
-
----
-
-## Common Workflows
-
-### Start a dev environment
-```bash
-procler group start backend
-procler status
-```
-
-### Debug a failing process
-```bash
-procler status api
-procler logs api --tail 50
-procler restart api
-```
-
-### Graceful deployment
-```bash
-procler recipe run deploy --dry-run  # Preview
-procler recipe run deploy            # Execute
-```
-
-### Initialize new project
-```bash
-procler config init
-# Edit .procler/config.yaml
-procler config validate
-procler config explain
-```
+- Use `uv` for all Python operations
+- Run tests before committing
+- Config changes go in `.procler/config.yaml`, not runtime DB
+- Frontend is pre-built in `procler/static/` (rebuild with `scripts/build_frontend.sh`)
