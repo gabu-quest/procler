@@ -1,0 +1,103 @@
+[project]
+name = "procler"
+version = "0.3.0"
+description = "LLM-first process manager for developers"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [
+    { name = "gabu-quest" }
+]
+keywords = [
+    "process-manager",
+    "devtools",
+    "cli",
+    "docker",
+    "llm",
+    "claude",
+    "ai-assistant",
+    "json-api",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: System :: Monitoring",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "click>=8.1.0",
+    "docker>=7.0.0",
+    "websockets>=12.0",
+    "sqler>=0.1.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0.0",
+    "loguru>=0.7.3",
+    "croniter>=6.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/gabu-quest/procler"
+Repository = "https://github.com/gabu-quest/procler"
+Documentation = "https://github.com/gabu-quest/procler#readme"
+Issues = "https://github.com/gabu-quest/procler/issues"
+Changelog = "https://github.com/gabu-quest/procler/blob/main/CHANGELOG.md"
+
+[project.scripts]
+procler = "procler.cli:cli"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.26.0",
+    "ruff>=0.2.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
+    "pre-commit>=4.0.0",
+]
+
+tui = [
+    "textual>=1.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/.github",
+    "/tests",
+    "/frontend",
+    "/scripts",
+    "/.gitignore",
+    "/the-style-main.zip",
+    "/CLAUDE.md",
+    "/CLAUDE.local.md",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["procler"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

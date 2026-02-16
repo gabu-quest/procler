@@ -1,0 +1,300 @@
+{
+  "nav": {
+    "dashboard": "ダッシュボード",
+    "processes": "プロセス",
+    "groups": "グループ",
+    "recipes": "レシピ",
+    "snippets": "スニペット",
+    "config": "設定",
+    "about": "About"
+  },
+  "common": {
+    "refresh": "更新",
+    "close": "閉じる",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "create": "作成",
+    "delete": "削除",
+    "remove": "削除",
+    "copy": "コピー",
+    "run": "実行",
+    "start": "起動",
+    "stop": "停止",
+    "restart": "再起動",
+    "preview": "プレビュー",
+    "retry": "再試行",
+    "loading": "読み込み中...",
+    "running": "実行中",
+    "stopped": "停止",
+    "failed": "失敗",
+    "success": "成功",
+    "error": "エラー",
+    "viewAll": "すべて表示",
+    "more": "+{count}件",
+    "local": "ローカル",
+    "docker": "Docker",
+    "exists": "存在",
+    "missing": "不在",
+    "active": "有効",
+    "notFound": "見つかりません",
+    "tracking": "追跡中",
+    "noChangelog": "変更履歴なし"
+  },
+  "connection": {
+    "connected": "接続済み",
+    "connecting": "接続中",
+    "connectingAttempt": "接続中（{count}回目）...",
+    "disconnected": "切断",
+    "error": "接続エラー"
+  },
+  "dashboard": {
+    "title": "ダッシュボード",
+    "stats": {
+      "running": "実行中",
+      "processes": "プロセス",
+      "groups": "グループ",
+      "recipes": "レシピ"
+    },
+    "processStatus": "プロセスステータス",
+    "quickActions": "クイックアクション",
+    "recentActivity": "最近のアクティビティ",
+    "viewChangelog": "変更履歴を表示",
+    "noProcesses": "プロセスが定義されていません",
+    "noGroupsOrRecipes": "グループまたはレシピが定義されていません",
+    "defineInConfig": "{config}で定義してください",
+    "noRecentActivity": "最近のアクティビティはありません"
+  },
+  "processes": {
+    "title": "プロセス",
+    "defineProcess": "プロセスを定義",
+    "processRegistry": "プロセスレジストリ",
+    "liveInventory": "ライブランタイムインベントリ",
+    "runningCount": "{count}件実行中",
+    "totalCount": "{count}件",
+    "noProcesses": "プロセスが定義されていません",
+    "defineHint": "{config}またはCLIでプロセスを定義してください。",
+    "columns": {
+      "name": "名前",
+      "status": "ステータス",
+      "pid": "PID",
+      "context": "コンテキスト",
+      "command": "コマンド",
+      "actions": "操作"
+    },
+    "actions": {
+      "viewDetails": "詳細を表示",
+      "startProcess": "プロセスを起動",
+      "stopProcess": "プロセスを停止",
+      "restartProcess": "プロセスを再起動",
+      "removeProcess": "プロセスを削除"
+    },
+    "modal": {
+      "commandTitle": "コマンド",
+      "defineTitle": "プロセスを定義"
+    },
+    "form": {
+      "name": "名前",
+      "namePlaceholder": "my-api",
+      "nameRequired": "名前は必須です",
+      "command": "コマンド",
+      "commandPlaceholder": "uvicorn main:app --port 8000",
+      "commandRequired": "コマンドは必須です",
+      "context": "コンテキスト",
+      "container": "コンテナ",
+      "containerPlaceholder": "container-name",
+      "workingDirectory": "作業ディレクトリ",
+      "workingDirectoryPlaceholder": "/path/to/project（オプション）",
+      "tags": "タグ",
+      "tagsPlaceholder": "api,backend（オプション）"
+    },
+    "messages": {
+      "started": "{name}を起動しました",
+      "stopped": "{name}を停止しました",
+      "restarted": "{name}を再起動しました",
+      "removed": "{name}を削除しました",
+      "created": "{name}を作成しました",
+      "commandCopied": "コマンドをコピーしました",
+      "copyFailed": "コマンドのコピーに失敗しました",
+      "removeConfirm": "プロセス「{name}」を削除しますか？"
+    }
+  },
+  "groups": {
+    "title": "グループ",
+    "noGroups": "グループが定義されていません",
+    "defineHint": "{config}ファイルでグループを定義してください",
+    "startAll": "すべて起動",
+    "stopAll": "すべて停止",
+    "startOrder": "起動順序",
+    "stopOrder": "停止順序：",
+    "processCount": "{count}件のプロセス",
+    "missingInConfig": "設定に不在",
+    "missingTooltip": "このプロセスはstate.dbにのみ存在します。config.yamlに追加してグループに含めてください。",
+    "dependsOn": "依存関係: {deps}",
+    "operationCompleted": "操作が完了しました",
+    "operationHadErrors": "操作にエラーがありました",
+    "messages": {
+      "starting": "グループを起動中: {name}",
+      "started": "グループを起動しました: {name}",
+      "startFailed": "グループの起動に失敗しました: {error}",
+      "stopping": "グループを停止中: {name}",
+      "stopped": "グループを停止しました: {name}",
+      "stopFailed": "グループの停止に失敗しました: {error}"
+    },
+    "linuxState": {
+      "unkillable": "D（終了不可）",
+      "zombie": "Z（ゾンビ）"
+    }
+  },
+  "recipes": {
+    "title": "レシピ",
+    "noRecipes": "レシピが定義されていません",
+    "defineHint": "{config}ファイルでレシピを定義してください",
+    "stepsCount": "{count}ステップ",
+    "onError": "on_error: {mode}",
+    "ranAgo": "{time}前に実行",
+    "execution": {
+      "running": "レシピを実行中...",
+      "completed": "レシピが正常に完了しました",
+      "stoppedDueToError": "エラーによりレシピが停止しました",
+      "previewMode": "プレビューモード",
+      "stepsProgress": "{completed} / {total} ステップ"
+    },
+    "messages": {
+      "failed": "レシピが失敗しました: {error}",
+      "loadFailed": "レシピステップの読み込みに失敗しました"
+    },
+    "time": {
+      "justNow": "たった今",
+      "minutesAgo": "{count}分前",
+      "hoursAgo": "{count}時間前",
+      "daysAgo": "{count}日前"
+    }
+  },
+  "snippets": {
+    "title": "スニペット",
+    "saveSnippet": "スニペットを保存",
+    "noSnippets": "スニペットがありません",
+    "createFirst": "最初のスニペットを作成",
+    "deleteConfirm": "スニペット「{name}」を削除しますか？",
+    "modal": {
+      "saveTitle": "スニペットを保存",
+      "resultTitle": "結果: {name}"
+    },
+    "form": {
+      "name": "名前",
+      "namePlaceholder": "rebuild-api",
+      "nameRequired": "名前は必須です",
+      "command": "コマンド",
+      "commandPlaceholder": "docker compose build api",
+      "commandRequired": "コマンドは必須です",
+      "description": "説明",
+      "descriptionPlaceholder": "このスニペットの説明（オプション）",
+      "tags": "タグ",
+      "tagsPlaceholder": "docker,build（オプション）"
+    },
+    "result": {
+      "completedSuccessfully": "正常に完了しました",
+      "executionFailed": "実行に失敗しました",
+      "exitCode": "終了コード: {code}",
+      "output": "出力",
+      "stderr": "標準エラー",
+      "noOutput": "（出力なし）"
+    },
+    "messages": {
+      "saved": "スニペットを保存しました: {name}",
+      "removed": "スニペットを削除しました: {name}",
+      "running": "スニペットを実行中: {name}"
+    }
+  },
+  "config": {
+    "title": "設定",
+    "reloadConfig": "設定を再読み込み",
+    "configuration": "設定",
+    "definedInConfig": "設定で定義",
+    "variables": "変数",
+    "variablesCount": "{count}件の変数",
+    "noVariables": "変数が定義されていません",
+    "addVarsHint": "{config}に{vars}ブロックを追加してください",
+    "varsUsageHint": "コマンド、コンテナ名、レシピのexecステップで{syntax}を使用できます。",
+    "changelog": "変更履歴",
+    "noChangelog": "変更履歴がありません",
+    "changelogHint": "操作は{file}に記録されます",
+    "changelogEmpty": "変更履歴は空です",
+    "processDefinitions": "プロセス定義",
+    "labels": {
+      "configDirectory": "設定ディレクトリ",
+      "configFile": "設定ファイル",
+      "version": "バージョン"
+    },
+    "columns": {
+      "name": "名前",
+      "value": "値",
+      "context": "コンテキスト",
+      "command": "コマンド",
+      "container": "コンテナ"
+    },
+    "messages": {
+      "reloaded": "設定を再読み込みしました",
+      "reloadFailed": "再読み込みに失敗しました"
+    }
+  },
+  "about": {
+    "title": "About",
+    "tagline": "LLMファーストプロセスマネージャー",
+    "description": "統合CLIとリアルタイムダッシュボードでローカルとDockerプロセスをオーケストレーション。再利用可能なレシピを構築し、ログを手元に保ち、自信を持ってデプロイ。",
+    "openProcesses": "プロセスを開く",
+    "viewConfig": "設定を表示",
+    "tags": {
+      "local": "ローカル",
+      "docker": "Docker",
+      "recipes": "レシピ",
+      "vars": "変数"
+    },
+    "whatItDoes": {
+      "title": "Proclerとは",
+      "description": "Proclerはプロセス制御を決定論的に保ちます：一度定義すれば、安全に起動・停止でき、ステータス更新とログを一箇所で確認できます。UIとCLIは同じコアロジックを共有しています。"
+    },
+    "concepts": {
+      "title": "コンセプト",
+      "items": {
+        "processes": "プロセスは単一のレジストリに存在します。",
+        "contexts": "コンテキストがコマンドの実行場所（ローカルまたはDocker）を決定します。",
+        "recipes": "レシピが複数ステップのワークフローをオーケストレーションします。",
+        "vars": "Varsで${VAR}を使ってコマンドをテンプレート化できます。"
+      }
+    },
+    "quickStart": {
+      "title": "クイックスタート"
+    },
+    "techStack": {
+      "title": "技術スタック",
+      "backend": "バックエンド",
+      "database": "データベース",
+      "frontend": "フロントエンド",
+      "cli": "CLI",
+      "realtime": "リアルタイム"
+    },
+    "links": {
+      "title": "リンク",
+      "github": "GitHubリポジトリ",
+      "pypi": "PyPIパッケージ",
+      "documentation": "ドキュメント"
+    },
+    "version": "バージョン",
+    "license": "ライセンス"
+  },
+  "shortcuts": {
+    "title": "キーボードショートカット",
+    "navigation": "ナビゲーション",
+    "general": "一般",
+    "goToDashboard": "ダッシュボードへ移動",
+    "goToProcesses": "プロセスへ移動",
+    "goToGroups": "グループへ移動",
+    "goToRecipes": "レシピへ移動",
+    "goToSnippets": "スニペットへ移動",
+    "goToConfig": "設定へ移動",
+    "goToAbout": "Aboutへ移動",
+    "showShortcuts": "キーボードショートカットを表示",
+    "closeDialogs": "ダイアログを閉じる"
+  }
+}

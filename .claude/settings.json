@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path' | { read file_path; if echo \"$file_path\" | grep -q '/frontend/'; then echo '[hook] Frontend file changed, rebuilding...' && cd \"$CLAUDE_PROJECT_DIR\" && ./scripts/build_frontend.sh > /dev/null 2>&1 && echo '[hook] Frontend build complete'; fi; }",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

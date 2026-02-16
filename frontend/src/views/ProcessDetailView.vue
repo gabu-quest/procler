@@ -1,0 +1,489 @@
+<template>
+  <div class="process-detail">
+    <Breadcrumbs />
+    <div class="page-header">
+      <div class="header-left">
+        <h1>{{ store.currentProcess?.name ?? "Loading..." }}</h1>
+        <n-tag v-if="store.currentProcess" :type="statusColor(store.currentProcess.status)" size="medium">
+          {{ store.currentProcess.status }}
+        </n-tag>
+      </div>
+      <n-space>
+        <n-button
+          type="success"
+          :disabled="store.currentProcess?.status === 'running'"
+          @click="handleStart"
+        >
+          <template #icon>
+            <PhPlay weight="fill" />
+          </template>
+          Start
+        </n-button>
+        <n-button
+          type="warning"
+          :disabled="store.currentProcess?.status !== 'running'"
+          @click="handleStop"
+        >
+          <template #icon>
+            <PhStop weight="fill" />
+          </template>
+          Stop
+        </n-button>
+        <n-button type="info" @click="handleRestart">
+          <template #icon>
+            <PhArrowsClockwise />
+          </template>
+          Restart
+        </n-button>
+      </n-space>
+    </div>
+
+    <n-spin :show="store.loading">
+      <div v-if="store.error" class="error-state">
+        <n-alert type="error" :title="store.error" />
+      </div>
+
+      <n-grid v-else-if="store.currentProcess" :cols="2" :x-gap="24" :y-gap="24">
+        <n-gi>
+          <n-card title="Details">
+            <n-descriptions :column="1" label-placement="left" bordered>
+              <n-descriptions-item label="Name">{{ store.currentProcess.name }}</n-descriptions-item>
+              <n-descriptions-item label="Command">
+                <n-button text class="command-button" @click="openCommand" :disabled="!commandValue">
+                  <span class="command-text">{{ commandValue }}</span>
+                </n-button>
+              </n-descriptions-item>
+              <n-descriptions-item label="Context">
+                <n-tag size="small" :type="contextTagType">{{ contextLabel }}</n-tag>
+              </n-descriptions-item>
+              <n-descriptions-item v-if="store.currentProcess.container" label="Container">
+                {{ store.currentProcess.container }}
+              </n-descriptions-item>
+              <n-descriptions-item v-if="store.currentProcess.cwd" label="Working Dir">
+                {{ store.currentProcess.cwd }}
+              </n-descriptions-item>
+              <n-descriptions-item label="PID">{{ store.currentProcess.pid ?? "-" }}</n-descriptions-item>
+              <n-descriptions-item v-if="store.currentProcess.linux_state" label="State">
+                <n-space size="small">
+                  <n-tag
+                    :type="linuxStateType(store.currentProcess.linux_state.state_code)"
+                    size="small"
+                  >
+                    {{ store.currentProcess.linux_state.state_code }} ({{ store.currentProcess.linux_state.state_name }})
+                  </n-tag>
+                  <span v-if="!store.currentProcess.linux_state.is_killable" class="state-warning">
+                    ⚠️ Cannot be killed
+                  </span>
+                </n-space>
+              </n-descriptions-item>
+              <n-descriptions-item v-if="store.currentProcess.uptime_seconds" label="Uptime">
+                {{ formatUptime(store.currentProcess.uptime_seconds) }}
+              </n-descriptions-item>
+              <n-descriptions-item v-if="store.currentProcess.tags" label="Tags">
+                <n-space size="small">
+                  <n-tag v-for="tag in store.currentProcess.tags" :key="tag" size="small">
+                    {{ tag }}
+                  </n-tag>
+                </n-space>
+              </n-descriptions-item>
+            </n-descriptions>
+          </n-card>
+        </n-gi>
+
+        <n-gi>
+          <n-card title="Logs" class="logs-card">
+            <template #header-extra>
+              <n-space size="small" align="center">
+                <n-input
+                  v-model:value="logFilter"
+                  placeholder="Filter logs..."
+                  size="small"
+                  clearable
+                  style="width: 180px"
+                  aria-label="Filter logs"
+                >
+                  <template #prefix>
+                    <PhMagnifyingGlass :size="14" />
+                  </template>
+                </n-input>
+                <n-select
+                  v-model:value="streamFilter"
+                  :options="streamOptions"
+                  size="small"
+                  style="width: 100px"
+                  aria-label="Filter by stream"
+                />
+                <n-button size="small" @click="fetchLogs" aria-label="Refresh logs">Refresh</n-button>
+                <n-tag :type="connected ? 'success' : 'default'" size="small">
+                  {{ connected ? "Live" : "Disconnected" }}
+                </n-tag>
+              </n-space>
+            </template>
+            <div class="log-viewer" ref="logViewerRef">
+              <div v-if="filteredLogs.length === 0" class="log-empty">
+                {{ store.logs.length === 0 ? "No logs available" : "No logs match filter" }}
+              </div>
+              <div
+                v-for="(log, idx) in filteredLogs"
+                :key="idx"
+                :class="['log-line', `log-${log.stream}`]"
+              >
+                <span class="log-timestamp">{{ formatTimestamp(log.timestamp) }}</span>
+                <span class="log-content" v-html="highlightMatch(log.line)"></span>
+              </div>
+            </div>
+            <div v-if="logFilter || streamFilter !== 'all'" class="log-footer">
+              <span class="log-count">
+                Showing {{ filteredLogs.length }} of {{ store.logs.length }} logs
+              </span>
+            </div>
+          </n-card>
+        </n-gi>
+      </n-grid>
+      <div v-else class="empty-state">
+        <n-empty description="Process details unavailable" size="small">
+          <template #extra>
+            <n-button size="small" @click="store.fetchProcess(processName)">Retry</n-button>
+          </template>
+        </n-empty>
+      </div>
+    </n-spin>
+
+    <n-modal v-model:show="showCommandModal" preset="card" title="Command" style="max-width: 720px;">
+      <pre class="command-code"><code>{{ commandValue }}</code></pre>
+      <template #footer>
+        <n-button @click="showCommandModal = false">Close</n-button>
+      </template>
+    </n-modal>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, onUnmounted, watch, nextTick, computed } from "vue";
+import { useRoute } from "vue-router";
+import {
+  NButton,
+  NCard,
+  NGrid,
+  NGi,
+  NDescriptions,
+  NDescriptionsItem,
+  NTag,
+  NSpace,
+  NSpin,
+  NModal,
+  NAlert,
+  NEmpty,
+  NInput,
+  NSelect,
+  useMessage,
+} from "naive-ui";
+import { PhPlay, PhStop, PhArrowsClockwise, PhMagnifyingGlass } from "@phosphor-icons/vue";
+import { useProcessStore } from "@/stores/processes";
+import { useWebSocket } from "@/composables/useWebSocket";
+import Breadcrumbs from "@/components/Breadcrumbs.vue";
+
+const route = useRoute();
+const store = useProcessStore();
+const message = useMessage();
+const { connected, connect, subscribeLogs, unsubscribeLogs, subscribeStatus } = useWebSocket();
+
+const logViewerRef = ref<HTMLElement | null>(null);
+const showCommandModal = ref(false);
+const logFilter = ref("");
+const streamFilter = ref<"all" | "stdout" | "stderr">("all");
+
+const streamOptions = [
+  { label: "All", value: "all" },
+  { label: "stdout", value: "stdout" },
+  { label: "stderr", value: "stderr" },
+];
+
+const processName = route.params.name as string;
+const contextLabel = computed(() => {
+  const process = store.currentProcess;
+  return process?.context ?? process?.context_type ?? "local";
+});
+const contextTagType = computed(() => (contextLabel.value === "docker" ? "info" : "default"));
+const commandValue = computed(() => store.currentProcess?.command ?? "");
+
+const filteredLogs = computed(() => {
+  let logs = store.logs;
+
+  // Filter by stream
+  if (streamFilter.value !== "all") {
+    logs = logs.filter((log) => log.stream === streamFilter.value);
+  }
+
+  // Filter by search term
+  if (logFilter.value.trim()) {
+    const searchTerm = logFilter.value.toLowerCase();
+    logs = logs.filter((log) => log.line.toLowerCase().includes(searchTerm));
+  }
+
+  return logs;
+});
+
+function highlightMatch(text: string): string {
+  if (!logFilter.value.trim()) return escapeHtml(text);
+
+  const searchTerm = logFilter.value.trim();
+  const regex = new RegExp(`(${escapeRegex(searchTerm)})`, "gi");
+  return escapeHtml(text).replace(regex, '<mark class="log-highlight">$1</mark>');
+}
+
+function escapeHtml(text: string): string {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function escapeRegex(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function openCommand() {
+  if (!commandValue.value) return;
+  showCommandModal.value = true;
+}
+
+function statusColor(status: string) {
+  switch (status) {
+    case "running":
+      return "success";
+    case "stopped":
+      return "default";
+    case "failed":
+      return "error";
+    default:
+      return "default";
+  }
+}
+
+function formatTimestamp(ts: string) {
+  try {
+    const date = new Date(ts);
+    return date.toLocaleTimeString();
+  } catch {
+    return ts;
+  }
+}
+
+function linuxStateType(stateCode: string) {
+  switch (stateCode) {
+    case "R":
+      return "success";
+    case "S":
+    case "I":
+      return "info";
+    case "D":
+      return "error";
+    case "Z":
+    case "T":
+    case "t":
+      return "warning";
+    default:
+      return "default";
+  }
+}
+
+function formatUptime(seconds: number) {
+  if (seconds < 60) return `${Math.floor(seconds)}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  return `${hours}h ${mins}m`;
+}
+
+async function fetchLogs() {
+  await store.fetchLogs(processName, 200);
+  scrollToBottom();
+}
+
+function scrollToBottom() {
+  nextTick(() => {
+    if (logViewerRef.value) {
+      logViewerRef.value.scrollTop = logViewerRef.value.scrollHeight;
+    }
+  });
+}
+
+async function handleStart() {
+  const result = await store.startProcess(processName);
+  if (result.success) {
+    message.success("Process started");
+  } else {
+    message.error(result.error);
+  }
+}
+
+async function handleStop() {
+  const result = await store.stopProcess(processName);
+  if (result.success) {
+    message.success("Process stopped");
+  } else {
+    message.error(result.error);
+  }
+}
+
+async function handleRestart() {
+  const result = await store.restartProcess(processName);
+  if (result.success) {
+    message.success("Process restarted");
+  } else {
+    message.error(result.error);
+  }
+}
+
+// Auto-scroll when new logs come in
+watch(() => store.logs.length, scrollToBottom);
+
+onMounted(async () => {
+  await store.fetchProcess(processName);
+  await fetchLogs();
+  connect();
+  subscribeStatus();
+  if (store.currentProcess) {
+    subscribeLogs(store.currentProcess.id);
+  }
+});
+
+onUnmounted(() => {
+  if (store.currentProcess) {
+    unsubscribeLogs(store.currentProcess.id);
+  }
+});
+</script>
+
+<style scoped>
+.process-detail {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.header-left h1 {
+  margin: 0;
+}
+
+.error-state,
+.empty-state {
+  padding: 1rem 0;
+}
+
+.process-detail :deep(.n-descriptions-item__label) {
+  min-width: 110px;
+  white-space: nowrap;
+}
+
+.command-button {
+  font-family: var(--n-font-family-mono);
+  font-size: 0.85rem;
+  max-width: 420px;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-code {
+  background: var(--n-code-color);
+  border-radius: var(--n-border-radius);
+  border: 1px solid var(--n-border-color);
+  font-family: var(--n-font-family-mono);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.logs-card :deep(.n-card__content) {
+  padding: 0;
+}
+
+.log-viewer {
+  height: 400px;
+  overflow-y: auto;
+  font-family: var(--n-font-family-mono);
+  font-size: 12px;
+  background: var(--n-code-color);
+  padding: 0.5rem;
+  border-radius: 0 0 var(--n-border-radius) var(--n-border-radius);
+}
+
+.log-empty {
+  color: var(--n-text-color-3);
+  padding: 1rem;
+  text-align: center;
+}
+
+.log-line {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  line-height: 1.4;
+}
+
+.log-line:hover {
+  background: var(--n-hover-color);
+}
+
+.log-timestamp {
+  color: var(--n-text-color-3);
+  flex-shrink: 0;
+}
+
+.log-content {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-stderr {
+  color: var(--n-error-color);
+}
+
+.state-warning {
+  color: var(--n-error-color);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.log-footer {
+  padding: 0.5rem;
+  border-top: 1px solid var(--n-border-color);
+  background: var(--n-card-color);
+}
+
+.log-count {
+  font-size: 0.75rem;
+  color: var(--n-text-color-3);
+}
+
+:deep(.log-highlight) {
+  background: var(--n-warning-color);
+  color: var(--n-text-color-base);
+  padding: 0 0.125rem;
+  border-radius: 2px;
+}
+</style>
