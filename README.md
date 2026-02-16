@@ -1,6 +1,6 @@
 # Procler
 
-[日本語](README.ja.md)
+**English | [日本語](README.ja.md)**
 
 <p align="center">
   <img src="procler.png" alt="Procler logo" width="160" height="160" />
@@ -13,330 +13,187 @@
 
 **A process manager where Claude Code is a first-class citizen.**
 
-Procler gives developers (and their AI coding assistants) a single pane of glass for managing the chaos of modern development environments - where processes span local shells, Docker containers, and various execution contexts.
+Every command returns structured JSON. Every error includes a machine-readable code and a suggested fix. Built for the workflow where your AI assistant manages your dev environment.
 
-## Features
+## Quick Start
 
-- **LLM-First CLI** - JSON-native commands designed for Claude Code integration
-- **Web Dashboard** - Vue 3 dashboard with Cyberpunk design system, real-time updates
-- **Dual Interface Parity** - CLI and Web UI share the same ProcessManager core
-- **Context Abstraction** - Manage local processes and Docker containers uniformly
-- **Groups & Recipes** - Orchestrate multi-process workflows with dependencies
-- **Health Checks** - Monitor process health with configurable checks
-- **Snippets** - Save and reuse common commands with tagging
-- **Real-time Updates** - WebSocket support for live status and log streaming
-- **Config Variables** - Define `vars` in config.yaml and reference with `${VAR}`
+```bash
+uv tool install procler
 
-## Demo
+procler define --name api --command "uvicorn main:app --port 8000"
+procler start api
+procler status api       # JSON with pid, uptime, linux_state
+procler logs api --tail 20
+procler stop api
+```
 
 <!-- Record demos: bash scripts/record-demos.sh -->
 <!-- Requires: asciinema (uv tool install asciinema) -->
-<!-- GIF: cargo install agg, then: agg demo.cast demo.gif -->
-<!-- SVG: npx svg-term-cli --in demo.cast --out demo.svg --window -->
 
-<details>
-<summary>Basic Workflow (define, start, status, logs, stop)</summary>
+## Why Procler?
 
-```bash
-procler define --name my-api --command "uvicorn main:app --port 8000"
-procler start my-api
-procler status my-api       # JSON with pid, uptime, linux_state
-procler logs my-api --tail 50
-procler stop my-api
-```
+Modern development means juggling local servers, Docker containers, background workers, and database migrations. Procler gives you one tool to manage all of them — with JSON output that LLMs can parse, health checks that block dependent services, and recipes that automate multi-step workflows.
 
-> Run `bash scripts/record-demos.sh` to generate animated recordings.
-</details>
+## Features
 
-<details>
-<summary>Group Start with Dependency Ordering</summary>
+**Core** — Process lifecycle with local and Docker execution contexts, log capture, PID tracking, Linux kernel state detection (`/proc` integration).
 
-```bash
-procler group start backend  # Starts redis -> db -> api -> worker in order
-procler group status backend # Status of all processes in the group
-procler group stop backend   # Stops in reverse order
-```
-</details>
+**Orchestration** — Groups with dependency-ordered startup (`depends_on` with `healthy`/`log_ready` conditions), multi-step recipes with dry-run preview, cron-scheduled processes, process replicas.
 
-<details>
-<summary>Recipe Dry-Run and Execution</summary>
+**Monitoring** — HTTP/TCP/command health probes, memory threshold auto-restart, `ready_log_line` regex matching, real-time WebSocket status and log streaming.
 
-```bash
-procler recipe run deploy --dry-run  # Preview steps without executing
-procler recipe run deploy            # Execute the multi-step recipe
-```
-</details>
+**Developer Experience** — JSON-native CLI, structured errors with `error_code` + `suggestion`, config variable substitution (`${VAR}`), Procfile import, systemd/Compose export, command snippets, Vue 3 web dashboard, Textual TUI.
 
-## How Does Procler Compare?
+## When to Use Procler
+
+**Good fit:**
+- Multi-service dev environments (API + worker + DB + cache)
+- Mixed local + Docker workflows
+- AI-assisted development (Claude Code, Cursor, etc.)
+- Teams that want config-as-code for their dev processes
+
+**Consider alternatives if:**
+- Single-process monitoring only — use your OS process manager
+- Kubernetes clusters — use Helm/ArgoCD
+- Multi-machine orchestration — use Nomad or Docker Swarm
+- Production deployment only — use systemd directly (Procler can export to it)
+
+## Comparison
 
 | Feature | Procler | Process Compose | PM2 | Supervisord | Foreman |
 |---------|:-------:|:---------------:|:---:|:-----------:|:-------:|
-| LLM-first JSON CLI | ✅ | - | - | - | - |
-| Web Dashboard (free) | ✅ | - | paid | - | - |
-| Docker container execution | ✅ | - | bolt-on | - | - |
-| Health checks | ✅ | ✅ | - | - | - |
-| Dependency-ordered startup | ✅ | ✅ | - | - | - |
-| `log_ready` condition | ✅ | ✅ | - | - | - |
-| Multi-step recipes | ✅ | - | - | - | - |
-| Snippets (command library) | ✅ | - | - | - | - |
-| Audit trail | ✅ | - | - | - | - |
-| WebSocket real-time | ✅ | - | - | - | - |
-| Config explain (LLM) | ✅ | - | - | - | - |
-| Memory threshold restart | ✅ | - | ✅ | - | - |
-| HTTP/TCP readiness probes | ✅ | ✅ | - | - | - |
-| Export to systemd | ✅ | - | - | - | ✅ |
-| Cron/scheduled processes | ✅ | ✅ | - | - | - |
-| Process replicas | ✅ | ✅ | ✅ | - | - |
-| Procfile import | ✅ | - | - | - | ✅ |
-| TUI mode | ✅ | ✅ | - | - | - |
-| Language-agnostic | ✅ | ✅ | Node.js | Python | Ruby |
+| LLM-first JSON CLI | **yes** | - | - | - | - |
+| Web dashboard (free) | **yes** | - | paid | - | - |
+| Docker container exec | **yes** | - | bolt-on | - | - |
+| Health checks (HTTP/TCP/cmd) | **yes** | **yes** | - | - | - |
+| Dependency-ordered startup | **yes** | **yes** | - | - | - |
+| `log_ready` condition | **yes** | **yes** | - | - | - |
+| Multi-step recipes | **yes** | - | - | - | - |
+| Command snippets | **yes** | - | - | - | - |
+| Cron scheduling | **yes** | **yes** | - | - | - |
+| Process replicas | **yes** | **yes** | **yes** | - | - |
+| Memory threshold restart | **yes** | - | **yes** | - | - |
+| Export to systemd/Compose | **yes** | - | - | - | **yes** |
+| Procfile import | **yes** | - | - | - | **yes** |
+| TUI mode | **yes** | **yes** | - | - | - |
+| Audit trail | **yes** | - | - | - | - |
+| Language-agnostic | **yes** | **yes** | Node.js | Python | Ruby |
+
+## Showcase
+
+### [C01] Basic Process Lifecycle
+
+```bash
+$ procler define --name my-api --command "sleep 60"
+{
+  "success": true,
+  "data": {"action": "created", "process": {"name": "my-api", ...}}
+}
+
+$ procler start my-api
+{
+  "success": true,
+  "data": {"status": "started", "process": {"status": "running", "pid": 12345}}
+}
+
+$ procler status my-api
+{
+  "success": true,
+  "data": {"process": {"name": "my-api", "status": "running", "pid": 12345, "uptime_seconds": 5}}
+}
+
+$ procler stop my-api
+{"success": true, "data": {"status": "stopped"}}
+```
+
+### [C02] JSON Response Contract
+
+Every CLI command returns this envelope:
+
+```json
+{"success": true, "data": {"..."}}
+```
+
+### [C03] Error Response Contract
+
+Every error includes `error_code` and `suggestion`:
+
+```json
+{
+  "success": false,
+  "error": "Process 'api' not found",
+  "error_code": "process_not_found",
+  "suggestion": "Run 'procler list' to see available processes"
+}
+```
+
+### [C15] Idempotent Operations
+
+```bash
+$ procler start my-api       # Already running → no-op
+{"success": true, "data": {"status": "already_running", "process": {"pid": 12345}}}
+
+$ procler stop my-api        # Already stopped → no-op
+{"success": true, "data": {"status": "already_stopped"}}
+```
+
+### [C04] Group Orchestration
+
+```bash
+$ procler group start backend  # Starts redis → db → api → worker (in order)
+$ procler group status backend # Status of all group processes
+$ procler group stop backend   # Stops in reverse order
+```
+
+### [C05] Recipe Dry-Run
+
+```bash
+$ procler recipe run deploy --dry-run   # Preview without executing
+$ procler recipe run deploy             # Execute the multi-step recipe
+```
+
+### [C06] Snippet Lifecycle
+
+```bash
+$ procler snippet save --name rebuild --command "docker compose build" --tags docker
+$ procler snippet list --tag docker
+$ procler snippet run rebuild
+$ procler snippet remove rebuild
+```
 
 ## Installation
 
 ```bash
-# Recommended: install as a global tool
+# Recommended
 uv tool install procler
 
-# With TUI support (terminal UI)
+# With TUI support
 uv tool install procler[tui]
 
 # Or via pip
 pip install procler
-pip install procler[tui]  # with TUI
 ```
 
-Or install from source:
+From source:
 
 ```bash
 git clone https://github.com/gabu-quest/procler.git
-cd procler
-uv sync --all-extras
+cd procler && uv sync --all-extras
 ```
 
-> **Note:** Frontend is pre-built and included. No separate build step needed!
-
-## Quick Start
-
-### Initialize Configuration
-
-```bash
-# Create .procler/ config directory
-procler config init
-
-# Validate your config
-procler config validate
-
-# Get a plain-language explanation of your config
-procler config explain
-```
-
-### Process Management
-
-```bash
-# Define a process
-procler define --name my-api --command "uvicorn main:app --port 8000"
-
-# Start it
-procler start my-api
-
-# Check status (JSON output)
-procler status my-api
-
-# View logs
-procler logs my-api --tail 50 --since 5m
-
-# Stop it
-procler stop my-api
-
-# Restart (with optional log clearing)
-procler restart my-api --clear-logs
-```
-
-### Docker Processes
-
-```bash
-# Define a process that runs in a Docker container
-procler define \
-  --name db-migrate \
-  --command "alembic upgrade head" \
-  --context docker \
-  --container api-container
-
-# Execute arbitrary command in container
-procler exec "pip list" --context docker --container api-container
-```
-
-### Groups & Recipes
-
-```bash
-# Start all processes in a group (respects order and dependencies)
-procler group start backend
-
-# Stop in reverse order
-procler group stop backend
-
-# Preview a recipe before running
-procler recipe run deploy --dry-run
-
-# Execute the recipe
-procler recipe run deploy
-```
-
-### Variable Substitution
-
-Define vars in `.procler/config.yaml` and reference them in commands and container names:
-
-```yaml
-vars:
-  SIM_CONTAINER: my-sim-container
-  SIM_USER: "1000"
-  SIM_WORKDIR: /opt/sim
-
-processes:
-  simulator:
-    command: "${SIM_WORKDIR}/bin/simulator"
-    context: docker
-    container: "${SIM_CONTAINER}"
-```
-
-### Snippets (Reusable Commands)
-
-```bash
-# Save a snippet
-procler snippet save \
-  --name rebuild-api \
-  --command "docker compose build api" \
-  --tags docker,build
-
-# List snippets (with optional tag filter)
-procler snippet list --tag docker
-
-# Run a snippet
-procler snippet run rebuild-api
-```
-
-### Web Server
-
-```bash
-# Start the API server
-procler serve --host 0.0.0.0 --port 8000
-
-# With hot reload for development
-procler serve --reload
-```
-
-## CLI Reference
-
-All CLI commands return structured JSON for easy parsing by scripts and LLMs.
-
-### Discovery & Config Commands
-
-| Command | Description |
-|---------|-------------|
-| `procler capabilities` | Returns JSON schema of all commands (LLM discovery) |
-| `procler help-llm` | Output comprehensive LLM-focused usage instructions |
-| `procler config init [--force]` | Initialize `.procler/` config directory with template |
-| `procler config validate` | Validate config.yaml syntax and all references |
-| `procler config path` | Show the resolved config directory path |
-| `procler config explain` | Explain config in plain language (LLM-friendly) |
-
-### Process Commands
-
-| Command | Description |
-|---------|-------------|
-| `procler define --name NAME --command CMD [options]` | Define a new process |
-| `procler start NAME` | Start a process (idempotent) |
-| `procler stop NAME` | Stop a process (idempotent) |
-| `procler restart NAME [--clear-logs]` | Restart a process |
-| `procler status [NAME]` | Show status (all or single process) |
-| `procler list [--resolve] [--namespace NS]` | List all process definitions |
-| `procler remove NAME` | Remove a process definition |
-| `procler logs NAME [--tail N] [--since TIME] [-f]` | Get/follow logs |
-| `procler exec "CMD" [--context TYPE] [--container NAME]` | Execute one-off command |
-
-#### Define Options
-
-| Option | Description |
-|--------|-------------|
-| `--name` | Process name (required) |
-| `--command` | Command to execute (required) |
-| `--context` | `local` or `docker` (default: local) |
-| `--container` | Docker container name (required for docker) |
-| `--cwd` | Working directory |
-| `--display-name` | Human-friendly name |
-| `--tags` | Comma-separated tags |
-| `--daemon-mode` | Enable daemon mode (process forks) |
-| `--daemon-pattern` | Process name pattern to match daemon |
-| `--daemon-pidfile` | Path to daemon pidfile |
-| `--force` | Overwrite existing definition |
-
-### Group Commands
-
-| Command | Description |
-|---------|-------------|
-| `procler group list` | List all groups defined in config |
-| `procler group start NAME` | Start all processes in order |
-| `procler group stop NAME` | Stop all processes in reverse/custom order |
-| `procler group status NAME` | Get status of all processes in group |
-
-### Recipe Commands
-
-| Command | Description |
-|---------|-------------|
-| `procler recipe list` | List all recipes defined in config |
-| `procler recipe show NAME` | Show recipe details and steps |
-| `procler recipe run NAME [--dry-run] [--continue-on-error]` | Execute a recipe |
-
-### Snippet Commands
-
-| Command | Description |
-|---------|-------------|
-| `procler snippet list [--tag TAG]` | List all snippets |
-| `procler snippet show NAME` | Show snippet details |
-| `procler snippet save --name NAME --command CMD [options]` | Save a new snippet |
-| `procler snippet run NAME` | Run a saved snippet |
-| `procler snippet remove NAME` | Remove a snippet |
-
-### Export Commands
-
-| Command | Description |
-|---------|-------------|
-| `procler export systemd NAME` | Export a process as a systemd .service unit file |
-| `procler export systemd --all` | Export all local processes as systemd units |
-| `procler export compose` | Export all processes as docker-compose.yml |
-
-### Import Commands
-
-| Command | Description |
-|---------|-------------|
-| `procler import procfile PATH [--dry-run] [--merge]` | Import processes from a Procfile |
-
-### TUI Command
-
-| Command | Description |
-|---------|-------------|
-| `procler tui` | Launch interactive Terminal UI (requires `procler[tui]`) |
-
-### Server Commands
-
-| Command | Description |
-|---------|-------------|
-| `procler serve [--host HOST] [--port PORT] [--reload]` | Start the web server |
+> Frontend is pre-built and included. No separate build step needed.
 
 ## Configuration
 
-Procler uses a per-project `.procler/` directory:
+Per-project `.procler/` directory. Discovery order: `$PROCLER_CONFIG_DIR` > `.procler.env` > `.procler/` > git root > `~/.procler/`
 
+```bash
+procler config init       # [C07] Creates .procler/ with template
+procler config validate   # [C08] Validates syntax and references
+procler config explain    # Plain-language explanation (LLM-friendly)
 ```
-.procler/
-├── config.yaml    # Definitions (commit to git)
-├── changelog.log  # Audit trail (commit to git)
-└── state.db       # Runtime state (auto-gitignored)
-```
 
-**Discovery order:** `$PROCLER_CONFIG_DIR` → `.procler.env` → `.procler/` → git root → `~/.procler/`
-
-### Example Configuration
+### [C09] Comprehensive Example
 
 ```yaml
 version: 1
@@ -347,16 +204,16 @@ vars:
 
 processes:
   api:
-    command: uvicorn main:app --reload --port ${API_PORT}
+    command: uvicorn main:app --reload --port ${API_PORT}     # Variable substitution
     context: local
     cwd: /path/to/project
     tags: [backend, api]
     description: "API server"
-    namespace: backend                    # Namespace isolation
-    ready_log_line: "Uvicorn running on"  # Regex for log_ready condition
-    max_memory: 512M                      # Auto-restart if RSS exceeds this
+    namespace: backend                                         # Namespace isolation
+    ready_log_line: "Uvicorn running on"                      # log_ready condition
+    max_memory: 512M                                          # Auto-restart on RSS exceed
     healthcheck:
-      http_get: "http://localhost:${API_PORT}/health"  # HTTP probe (no curl needed)
+      http_get: "http://localhost:${API_PORT}/health"         # HTTP probe (built-in)
       interval: 10s
       timeout: 5s
       retries: 3
@@ -364,42 +221,40 @@ processes:
 
   worker:
     command: celery worker -A tasks
-    context: local
-    namespace: backend
-    replicas: 3                           # Start 3 instances (worker-1, worker-2, worker-3)
+    replicas: 3                                               # Creates worker-1, -2, -3
     depends_on:
-      - redis
+      - redis                                                 # Wait for started (default)
       - name: api
-        condition: log_ready              # Wait for ready_log_line match
+        condition: log_ready                                  # Wait for ready_log_line
       - name: db
-        condition: healthy                # Wait for health check
+        condition: healthy                                    # Wait for health check
 
   db:
     command: postgres
     healthcheck:
-      tcp_socket: "localhost:5432"        # TCP probe
+      tcp_socket: "localhost:5432"                            # TCP probe (built-in)
       interval: 5s
       timeout: 3s
 
   cleanup:
     command: python scripts/cleanup.py
-    schedule: "0 */6 * * *"              # Cron: every 6 hours
+    schedule: "0 */6 * * *"                                   # Cron: every 6 hours
 
   db-migrate:
     command: alembic upgrade head
     context: docker
-    container: ${DB_CONTAINER}
+    container: ${DB_CONTAINER}                                # Docker execution
 
 groups:
   backend:
     description: "Full backend stack"
     processes: [redis, db, api, worker]
-    stop_order: [worker, api, db, redis]  # Optional custom order
+    stop_order: [worker, api, db, redis]                      # Custom stop order
 
 recipes:
   deploy:
     description: "Graceful deployment"
-    on_error: stop  # or continue
+    on_error: stop
     steps:
       - stop: worker
       - stop: api
@@ -417,106 +272,65 @@ snippets:
     tags: [docker]
 ```
 
-### New Config Features
+## CLI Reference
 
-#### Dependency Conditions
+All commands return structured JSON. Run `procler capabilities` for the full machine-readable schema.
 
-```yaml
-depends_on:
-  - redis                        # condition: started (default)
-  - name: api
-    condition: healthy            # Wait for health check to pass
-  - name: db
-    condition: log_ready          # Wait for ready_log_line regex match
-```
+| Command | Description |
+|---------|-------------|
+| **Discovery** | |
+| `procler capabilities` | JSON schema of all commands (LLM discovery) |
+| `procler help-llm` | Comprehensive LLM usage guide |
+| **Process Management** | |
+| `procler define --name NAME --command CMD [opts]` | Define a process |
+| `procler start NAME` | Start (idempotent) |
+| `procler stop NAME` | Stop (idempotent) |
+| `procler restart NAME [--clear-logs]` | Restart |
+| `procler status [NAME]` | Status (all or single) |
+| `procler list [--resolve] [--namespace NS]` | List definitions |
+| `procler remove NAME` | Remove definition |
+| `procler logs NAME [--tail N] [--since TIME] [-f]` | Logs |
+| `procler exec "CMD" [--context TYPE] [--container NAME]` | One-off command |
+| **Groups** | |
+| `procler group list` | List groups |
+| `procler group start\|stop\|status NAME` | Group operations |
+| **Recipes** | |
+| `procler recipe list` | List recipes |
+| `procler recipe show NAME` | Recipe details |
+| `procler recipe run NAME [--dry-run] [--continue-on-error]` | Execute recipe |
+| **Snippets** | |
+| `procler snippet list [--tag TAG]` | List snippets |
+| `procler snippet show\|save\|run\|remove NAME` | Snippet CRUD |
+| **Config** | |
+| `procler config init [--force]` | Initialize .procler/ |
+| `procler config validate` | Validate config |
+| `procler config path` | Show config path |
+| `procler config explain` | Plain-language explanation |
+| **Export / Import** | |
+| `procler export systemd NAME\|--all` | [C10] Export systemd units |
+| `procler export compose` | [C11] Export docker-compose.yml |
+| `procler import procfile PATH [--dry-run] [--merge]` | [C12] Import Procfile |
+| **Other** | |
+| `procler tui` | Terminal UI (requires `procler[tui]`) |
+| `procler serve [--host H] [--port P] [--reload]` | Web server |
 
-#### Health Check Probes
+### Define Options
 
-Three probe types (use exactly one per healthcheck):
-
-```yaml
-healthcheck:
-  test: "curl -f http://localhost:8000/health"  # Command probe
-  # OR
-  http_get: "http://localhost:8000/health"      # HTTP GET probe (built-in)
-  # OR
-  tcp_socket: "localhost:5432"                  # TCP socket probe (built-in)
-  interval: 10s
-  timeout: 5s
-  retries: 3
-```
-
-#### Process Replicas
-
-```yaml
-processes:
-  worker:
-    command: celery worker
-    replicas: 3  # Creates worker-1, worker-2, worker-3
-    # Each gets PROCLER_REPLICA_INDEX env var (1, 2, 3)
-```
-
-#### Memory Threshold
-
-```yaml
-processes:
-  api:
-    command: uvicorn main:app
-    max_memory: 512M  # Auto-restart if RSS exceeds this (supports K, M, G)
-```
-
-#### Scheduled Processes
-
-```yaml
-processes:
-  cleanup:
-    command: python cleanup.py
-    schedule: "0 */6 * * *"  # Cron expression
-```
-
-#### Namespaces
-
-```yaml
-processes:
-  api:
-    command: uvicorn main:app
-    namespace: project-a  # Default: "default"
-```
-
-Filter by namespace: `procler list --namespace project-a`
-
-## CLI Output Format
-
-All CLI commands return structured JSON:
-
-### Success Response
-
-```json
-{
-  "success": true,
-  "data": {
-    "processes": [
-      {
-        "name": "my-api",
-        "status": "running",
-        "pid": 12345,
-        "uptime_seconds": 3600
-      }
-    ]
-  }
-}
-```
-
-### Error Response
-
-```json
-{
-  "success": false,
-  "error": "Container 'db-postgres' not found",
-  "error_code": "container_not_found",
-  "suggestion": "Run 'docker ps -a' to list available containers"
-}
-```
+| Option | Description |
+|--------|-------------|
+| `--name` | Process name (required) |
+| `--command` | Command to execute (required) |
+| `--context` | `local` or `docker` (default: local) |
+| `--container` | Docker container name (required for docker) |
+| `--cwd` | Working directory |
+| `--display-name` | Human-friendly name |
+| `--tags` | Comma-separated tags |
+| `--daemon-mode` | Enable daemon mode (process forks) |
+| `--daemon-pattern` | Process name pattern to match daemon |
+| `--daemon-pidfile` | Path to daemon pidfile |
+| `--daemon-container` | Container name for daemon detection |
+| `--adopt-existing` | Adopt existing daemon if running (requires `--daemon-mode`) |
+| `--force` | Overwrite existing definition |
 
 ## REST API
 
@@ -531,135 +345,51 @@ Base URL: `http://localhost:8000/api`
 | `/api/processes/{name}/start` | POST | Start process |
 | `/api/processes/{name}/stop` | POST | Stop process |
 | `/api/processes/{name}/restart` | POST | Restart process |
-| `/api/logs/{name}` | GET | Get logs (?tail=100&since=5m) |
-| `/api/groups` | GET | List all groups |
+| `/api/logs/{name}` | GET | Get logs (`?tail=100&since=5m`) |
+| `/api/groups` | GET | List groups |
 | `/api/groups/{name}/start` | POST | Start group |
 | `/api/groups/{name}/stop` | POST | Stop group |
 | `/api/groups/{name}/status` | GET | Group status |
-| `/api/recipes` | GET | List all recipes |
+| `/api/recipes` | GET | List recipes |
+| `/api/recipes/{name}` | GET | Get recipe details |
 | `/api/recipes/{name}/run` | POST | Run recipe |
-| `/api/snippets` | GET | List snippets (?tag=filter) |
+| `/api/recipes/{name}/dry-run` | POST | Dry-run recipe |
+| `/api/snippets` | GET | List snippets (`?tag=filter`) |
 | `/api/snippets` | POST | Create snippet |
 | `/api/snippets/{name}` | GET | Get snippet |
 | `/api/snippets/{name}` | DELETE | Remove snippet |
 | `/api/snippets/{name}/run` | POST | Run snippet |
 | `/api/config` | GET | Config status |
+| `/api/config/processes` | GET | Config process definitions |
 | `/api/config/reload` | POST | Reload config |
-| `/api/config/export/{format}` | GET | Export config (systemd, compose) |
+| `/api/config/changelog` | GET | Changelog entries |
+| `/api/config/export/{format}` | GET | Export (systemd, compose) |
+| `/api/config/explain` | GET | Plain-language config explanation |
 | `/api/health` | GET | Health check |
-
-## WebSocket
-
-Connect to `ws://localhost:8000/api/ws` for real-time updates.
-
-```javascript
-// Subscribe to logs for a process
-ws.send(JSON.stringify({action: "subscribe_logs", process_id: 1}));
-
-// Subscribe to status updates (all processes)
-ws.send(JSON.stringify({action: "subscribe_status"}));
-
-// Receive updates
-// {"type": "log", "process_id": 1, "data": {"line": "...", "stream": "stdout"}}
-// {"type": "status", "process_id": 1, "data": {"status": "running", "pid": 123}}
-```
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Backend | Python 3.12+, FastAPI |
-| Database | SQLite via [sqler](https://pypi.org/project/sqler/) |
-| Frontend | Vue 3, Vite, Pinia, Naive UI |
-| CLI | Click |
-| Docker | docker-py SDK |
-| Real-time | WebSockets |
-
-## Development
-
-```bash
-# Install dev dependencies
-uv sync --all-extras
-
-# Run tests (320+ tests)
-uv run pytest -v
-
-# Run CLI in development
-uv run procler --help
-
-# Run server with hot reload
-uv run procler serve --reload
-
-# Rebuild frontend (only if modifying Vue code)
-bash scripts/build_frontend.sh
-```
-
-### Pre-commit Hooks
-
-This project uses pre-commit hooks for code quality. Install them with:
-
-```bash
-pre-commit install
-```
-
-The hooks run ruff for linting and formatting on every commit.
+| `/api/ws` | WS | Real-time updates |
 
 ## Web Dashboard
 
-The Vue 3 frontend provides a visual interface for managing processes and snippets:
+Vue 3 frontend with Cyberpunk design. Start with `procler serve` and open http://localhost:8000.
 
-- **Dashboard** - Overview of all processes with real-time status
-- **Process List** - View all defined processes with start/stop/restart controls, per-action loading states
-- **Process Detail** - Live log streaming via WebSocket with search/filter and stream filtering
-- **Groups** - Card-based view with one-click start/stop all
-- **Recipes** - Step preview, dry-run, execution progress
-- **Snippets** - Save, manage, and run reusable commands with confirmations
-- **Config** - Status, stats, variable display, changelog viewer
+- **Dashboard** — Process overview with real-time status
+- **Process Detail** — Live log streaming via WebSocket, search/filter
+- **Groups** — Card-based view, one-click start/stop all
+- **Recipes** — Step preview, dry-run, execution progress
+- **Snippets** — Save, manage, run reusable commands
+- **Config** — Stats, variables, changelog viewer
 
-### Keyboard Shortcuts
+Keyboard shortcuts: press `?` for all. Quick nav: `g d` dashboard, `g p` processes, `g g` groups, `g r` recipes, `g s` snippets.
 
-Press `?` to view all shortcuts. Quick navigation:
-- `g d` - Dashboard
-- `g p` - Processes
-- `g g` - Groups
-- `g r` - Recipes
-- `g s` - Snippets
-- `g c` - Config
-- `g a` - About
+> **Frontend dev:** `cd frontend && npm run dev` (port 5173), rebuild with `bash scripts/build_frontend.sh`
 
-### UX Features
+## Honest Limitations
 
-- **Connection Status** - WebSocket indicator in header shows connected/connecting/error states
-- **Toast Notifications** - Automatic notifications when process status changes
-- **Log Search** - Filter logs by text (with match highlighting) or stream (stdout/stderr)
-- **Breadcrumbs** - Navigation context on detail pages
-- **Confirmations** - Destructive actions require confirmation
-
-### Running the Dashboard
-
-```bash
-# Start the server (serves both API and web UI)
-uv run procler serve --port 8000
-```
-
-Open http://localhost:8000 to access the dashboard.
-
-> **Frontend Development:** For Vue development, run `cd frontend && npm run dev` (dev server on port 5173) and rebuild with `bash scripts/build_frontend.sh`
-
-## Claude Code Integration
-
-Procler is designed for seamless AI assistant integration:
-
-```
-Human: "My auth-api seems slow, check its recent logs and restart it if there are errors"
-
-Claude Code:
-1. procler logs auth-api --tail 100
-2. [Analyzes JSON log output]
-3. procler restart auth-api
-4. procler status auth-api
-5. Reports back to human
-```
+- **Single-machine only** — Procler manages processes on one host. For multi-machine, use Nomad or Docker Swarm.
+- **SQLite state** — Runtime state is local SQLite. Not suitable for clustered deployments.
+- **Local logs only** — Log capture is filesystem-based. No remote log sinks (Splunk, Datadog, etc.).
+- **One config per project** — Use `$PROCLER_CONFIG_DIR` to manage multiple configs per project.
+- **No Windows support** — Linux and macOS only (`/proc` integration for process state).
 
 ## Environment Variables
 
@@ -667,10 +397,18 @@ Claude Code:
 |----------|---------|-------------|
 | `PROCLER_LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
 | `PROCLER_LOG_FILE` | - | Log file path (auto-rotates) |
-| `PROCLER_CONFIG_DIR` | `.procler/` | Config directory |
+| `PROCLER_CONFIG_DIR` | `.procler/` | Config directory override |
 | `PROCLER_DB_PATH` | `.procler/state.db` | Database path |
 | `PROCLER_CORS_ORIGINS` | `localhost` | Comma-separated allowed origins |
 | `PROCLER_DEBUG` | - | Enable detailed error messages |
+
+## Development
+
+```bash
+uv sync --all-extras        # Install all dependencies
+uv run pytest -v            # Run tests (320+)
+uv run procler serve --reload  # Dev server with hot reload
+```
 
 ## License
 
