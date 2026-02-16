@@ -1,43 +1,38 @@
-name: Publish to PyPI
+name: Publish (PyPI • Trusted Publishing)
 
 on:
   push:
     tags:
       - "v*"
 
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  publish:
+  build-and-publish:
+    name: Build & Publish
     runs-on: ubuntu-latest
     environment: pypi
-    permissions:
-      id-token: write  # Required for trusted publishing
-      contents: read
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Ensure tag is on main
-        run: |
-          git fetch origin main
-          git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"
-
-      - name: Install uv
+      - name: Setup UV
         uses: astral-sh/setup-uv@v4
         with:
-          version: "latest"
+          python-version: "3.12"
+          enable-cache: true
 
-      - name: Set up Python
-        run: uv python install 3.12
+      - name: Build sdist/wheel
+        run: |
+          uv build
+          ls -l dist
 
-      - name: Install build dependencies
-        run: uv sync --extra dev
-
-      - name: Build package
-        run: uv run python -m build
-
-      - name: Publish to PyPI
+      - name: Publish to PyPI (Trusted Publishing)
         uses: pypa/gh-action-pypi-publish@release/v1
-        # Uses trusted publishing - no API token needed
-        # Configure at: https://pypi.org/manage/project/procler/settings/publishing/
