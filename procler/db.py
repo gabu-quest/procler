@@ -31,13 +31,17 @@ def _get_schema_version(db: SQLerDB) -> int:
 
 def _set_schema_version(db: SQLerDB, version: int) -> None:
     """Set the schema version in database metadata."""
-    db.execute_sql("""
+    db.adapter.execute("""
         CREATE TABLE IF NOT EXISTS procler_meta (
             key TEXT PRIMARY KEY,
             value TEXT
         )
     """)
-    db.execute_sql(f"INSERT OR REPLACE INTO procler_meta (key, value) VALUES ('schema_version', '{version}')")
+    db.adapter.execute(
+        "INSERT OR REPLACE INTO procler_meta (key, value) VALUES (?, ?)",
+        ["schema_version", str(version)],
+    )
+    db.adapter.auto_commit()
 
 
 def _run_migrations(db: SQLerDB, from_version: int, to_version: int) -> None:
@@ -45,7 +49,8 @@ def _run_migrations(db: SQLerDB, from_version: int, to_version: int) -> None:
     if from_version < 2 <= to_version:
         # Add namespace column to Process table
         try:
-            db.execute_sql("ALTER TABLE process ADD COLUMN namespace TEXT DEFAULT 'default'")
+            db.adapter.execute("ALTER TABLE process ADD COLUMN namespace TEXT DEFAULT 'default'")
+            db.adapter.auto_commit()
             logger.info("Migration v2: Added namespace column to process table")
         except Exception:
             pass  # Column may already exist (fresh DB)
