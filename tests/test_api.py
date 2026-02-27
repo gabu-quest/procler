@@ -1,7 +1,5 @@
 """Tests for FastAPI endpoints (Phase 6)."""
 
-import asyncio
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -34,8 +32,11 @@ async def test_lifespan_startup_shutdown():
 
     # Test that lifespan can be entered and exited without errors
     async with lifespan(app):
-        # If we get here, startup succeeded
-        await asyncio.sleep(0.1)  # Brief pause to let background tasks start
+        # Verify startup initialized the event bus
+        from procler.core.events import get_event_bus
+
+        bus = get_event_bus()
+        assert bus is not None
 
     # If we exit cleanly, shutdown succeeded
 

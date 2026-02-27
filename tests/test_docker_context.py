@@ -3,6 +3,7 @@
 import json
 from unittest.mock import MagicMock, patch
 
+import pytest
 from click.testing import CliRunner
 
 from procler.cli import cli
@@ -224,11 +225,8 @@ class TestDockerContextMocked:
 
         context = DockerContext()
 
-        try:
+        with pytest.raises(ValueError, match="not found"):
             await context.exec_command(
                 command="echo hello",
                 container_name="nonexistent",
             )
-            assert False, "Should have raised ValueError"
-        except ValueError as e:
-            assert "not found" in str(e)

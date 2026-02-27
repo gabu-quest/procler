@@ -176,12 +176,11 @@ class TestMemoryCheckIntegration:
 
         over_limit = 300 * 1024 * 1024
         with patch("procler.core.process_manager.get_process_rss_bytes", return_value=over_limit):
-            with patch.object(pm, "restart", return_value={"success": True}):
+            with patch.object(pm, "restart", return_value={"success": True}) as mock_restart:
                 await pm._check_memory_limits()
 
-        # emit_sync schedules tasks; in async test context check state was updated
-        # The event bus emit_sync creates a task, verify restart was called
-        # which confirms the threshold was detected
+        # Verify the threshold was detected and restart was triggered
+        mock_restart.assert_called_once()
 
     async def test_check_memory_limits_skips_stopped_process(self):
         """Stopped processes should not be checked."""

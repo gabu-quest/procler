@@ -129,6 +129,11 @@ def load_config(config_path: Path | None = None) -> ProclerConfig:
     with open(config_path) as f:
         data = yaml.safe_load(f) or {}
 
+    # YAML returns None for sections with only comments — normalize to empty dicts
+    for key in ("vars", "processes", "groups", "recipes", "snippets"):
+        if key in data and data[key] is None:
+            data[key] = {}
+
     config = ProclerConfig.model_validate(data)
 
     # Warn about suspicious patterns in vars (security check)
