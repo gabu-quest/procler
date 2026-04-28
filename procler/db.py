@@ -1,7 +1,10 @@
 """Database initialization for Procler using sqler."""
 
 import logging
+import warnings
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from sqler import SQLerDB
 
@@ -15,6 +18,23 @@ _db: SQLerDB | None = None
 
 # Current schema version - increment when making breaking changes
 SCHEMA_VERSION = 2
+
+
+def _execute_schema_sql(db: SQLerDB, statement: str, params: Sequence[Any] | None = None) -> None:
+    """Execute app-owned schema SQL through sqler's write-capable adapter."""
+    db.adapter.execute(statement, list(params or []))
+    db.adapter.auto_commit()
+
+
+def _bind_model(db: SQLerDB, model: type[Any]) -> None:
+    """Bind a model while keeping sqler's class-binding deprecation internal."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=DeprecationWarning,
+            message=rf"{model.__name__}\.set_db\(\) is deprecated\.",
+        )
+        model.set_db(db)
 
 
 def _get_schema_version(db: SQLerDB) -> int:
@@ -31,24 +51,28 @@ def _get_schema_version(db: SQLerDB) -> int:
 
 def _set_schema_version(db: SQLerDB, version: int) -> None:
     """Set the schema version in database metadata."""
-    db.execute_sql("""
+    _execute_schema_sql(db, """
         CREATE TABLE IF NOT EXISTS procler_meta (
             key TEXT PRIMARY KEY,
             value TEXT
         )
     """)
-    db.execute_sql(f"INSERT OR REPLACE INTO procler_meta (key, value) VALUES ('schema_version', '{version}')")
+    _execute_schema_sql(
+        db,
+        "INSERT OR REPLACE INTO procler_meta (key, value) VALUES ('schema_version', ?)",
+        [str(version)],
+    )
 
 
 def _run_migrations(db: SQLerDB, from_version: int, to_version: int) -> None:
     """Run any necessary migrations between versions."""
     if from_version < 2 <= to_version:
-        # Add namespace column to Process table
-        try:
-            db.execute_sql("ALTER TABLE process ADD COLUMN namespace TEXT DEFAULT 'default'")
+        columns = db.execute_sql("PRAGMA table_info(process)")
+        has_process_table = bool(columns)
+        has_namespace_column = any(column.get("name") == "namespace" for column in columns)
+        if has_process_table and not has_namespace_column:
+            _execute_schema_sql(db, "ALTER TABLE process ADD COLUMN namespace TEXT DEFAULT 'default'")
             logger.info("Migration v2: Added namespace column to process table")
-        except Exception:
-            pass  # Column may already exist (fresh DB)
 
 
 def init_database(db_path: Path | None = None) -> SQLerDB:
@@ -74,9 +98,9 @@ def init_database(db_path: Path | None = None) -> SQLerDB:
         )
 
     # Register models with the database
-    Process.set_db(_db)
-    LogEntry.set_db(_db)
-    Snippet.set_db(_db)
+    _bind_model(_db, Process)
+    _bind_model(_db, LogEntry)
+    _bind_model(_db, Snippet)
 
     return _db
 

@@ -50,6 +50,7 @@ htmlcov/
 
 # Local development preferences
 CLAUDE.local.md
+claude.local.md
 
 # Sandbox testing documents
 .sandbox/
